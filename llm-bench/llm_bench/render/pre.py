@@ -17,12 +17,14 @@ from .. import __version__
 from ..config import Instance
 from ..textutil import slug
 from . import style as S
-from .assets import earlier_manifest, fit_text, label_of, lower_third, lower_third_named, manifest_entries, short, thumbnail, title_card
+from .assets import LOGO_SMALL_W, earlier_manifest, fit_text, label_of, lower_third, lower_third_named, manifest_entries, short, thumbnail, title_card
 
 KIT_URL = "github.com/SouthPawCode/packetpulse-kits"
 SITE_URL = "packetpulse.dev"
 PLACEHOLDER_QUESTION = "This week's question"
 ROUND_HEADLINE = "Proving Ground \u00b7 Round {n}"
+OPENING_LOGO_W = 1400  # px wide, centred on the opening frame
+END_LOGO_W = 1100  # px wide, top of the end card
 
 _QUANT = re.compile(r"(?<![A-Za-z0-9])((?:I?Q\d(?:_[A-Z0-9]+)*)|BF16|FP16|F16|FP8|MXFP4)(?![A-Za-z0-9])", re.I)
 _PARAMS = re.compile(r"(?<![A-Za-z0-9.])(\d+(?:\.\d+)?)B(?![A-Za-z])", re.I)
@@ -72,15 +74,13 @@ def _results_view(inst: Instance) -> dict[str, Any]:
 
 
 def opening_vitals(view: dict[str, Any], out: Path) -> list[str]:
-    """Wordmark over a patient-monitor vitals strip, with a flat line kicking into one pulse in the lower third."""
+    """The full logo (mark, wordmark, tagline) centred, the LAB VITALS label and a patient-monitor vitals strip under it."""
     fig, ax = S.new_card()
-    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.TEAL, lw=0))
-    S.wordmark(fig, ax, S.W / 2, 400, 128)
-    ax.plot([S.W / 2 - 170, S.W / 2 + 170], [492, 492], color=S.TEAL_LIGHT, lw=5)
-    ax.text(S.W / 2, 575, "LAB VITALS", fontsize=16, color=S.MUTED, ha="center", va="center", family=[S.mono_family(), S.FALLBACK_MONO], fontweight="bold")
-    S.vitals_strip(fig, ax, view["hardware"], 640, size=32)
-    S.pulse_trace(ax, 860)
-    ax.text(S.W - 60, S.H - 42, S.HANDLE, fontsize=16, color=S.TEAL_LIGHT, va="center", ha="right", fontweight="bold")
+    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.ACCENT, lw=0))
+    S.paste_brand(ax, "logo", S.W / 2, 330, width=OPENING_LOGO_W, align="center")
+    ax.text(S.W / 2, 730, "LAB VITALS", fontsize=16, color=S.MUTED, ha="center", va="center", family=[S.mono_family(), S.FALLBACK_MONO], fontweight="bold")
+    S.vitals_strip(fig, ax, view["hardware"], 800, size=32)
+    S.corner_mark(ax)
     return S.save(fig, out / "opening_vitals", svg=False)
 
 
@@ -88,21 +88,22 @@ def round_card(view: dict[str, Any], out: Path, round_no: int | None) -> list[st
     """'Proving Ground · Round N' over the instance title, or the title over 'Packet Pulse' with no round."""
     headline, sub = (ROUND_HEADLINE.format(n=round_no), view["title"]) if round_no else (view["title"], "Packet Pulse")
     fig, ax = S.new_card()
-    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.TEAL, lw=0))
+    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.ACCENT, lw=0))
+    S.paste_brand(ax, "logo", 70, 40, width=LOGO_SMALL_W)
     size = next((sz for sz in (96, 84, 72, 64, 56) if S.text_width(fig, ax, headline, fontsize=sz, fontweight="bold") <= 1700), 56)
     if round_no and S.text_width(fig, ax, headline, fontsize=size, fontweight="bold") <= 1700:
         lines = [headline]  # "Proving Ground · Round N" stays on one line, at whatever size fits
     else:
         lines, size = fit_text(headline, max_lines=3, sizes=[96, 84, 72, 64, 56, 48], char_em=0.66)
     step = size * 1.75
-    top = 430 - (len(lines) - 1) * step / 2
+    top = 470 - (len(lines) - 1) * step / 2
     for i, ln in enumerate(lines):
         ax.text(110, top + i * step, ln, fontsize=size, fontweight="bold", color=S.TEXT, va="center")
     y = top + (len(lines) - 1) * step + size * 1.1 + 30
-    ax.plot([110, 610], [y, y], color=S.TEAL_LIGHT, lw=5)
+    ax.plot([110, 610], [y, y], color=S.ACCENT, lw=5)
     sub_lines, sub_size = fit_text(sub, max_lines=2, sizes=[40, 36, 32, 28], char_em=0.56)
     for i, ln in enumerate(sub_lines):
-        ax.text(110, y + 70 + i * sub_size * 1.75, ln, fontsize=sub_size, color=S.TEAL_LIGHT, va="center")
+        ax.text(110, y + 70 + i * sub_size * 1.75, ln, fontsize=sub_size, color=S.ACCENT, va="center")
     S.footer(ax, view["hardware"])
     return S.save(fig, out / "round_card", svg=False)
 
@@ -110,32 +111,32 @@ def round_card(view: dict[str, Any], out: Path, round_no: int | None) -> list[st
 def question_card(view: dict[str, Any], out: Path, question: str | None) -> list[str]:
     text, real = question_text(question)
     fig, ax = S.new_card()
-    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.TEAL, lw=0))
-    S.wordmark(fig, ax, S.W / 2, 120, 34)
+    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.ACCENT, lw=0))
+    S.paste_brand(ax, "logo", 70, 40, width=LOGO_SMALL_W)
     lines, size = fit_text(text, max_lines=4, sizes=[68, 62, 56, 50, 44, 40], char_em=0.68, avail_px=1500)
     step = size * 1.6
     top = 585 - (len(lines) - 1) * step / 2
     if real:
-        ax.text(S.W / 2, max(top - step / 2 - 75, 230), "THIS WEEK'S QUESTION", fontsize=20, color=S.TEAL_LIGHT, ha="center", va="center",
+        ax.text(S.W / 2, max(top - step / 2 - 75, 230), "THIS WEEK'S QUESTION", fontsize=20, color=S.ACCENT, ha="center", va="center",
                 family=[S.mono_family(), S.FALLBACK_MONO], fontweight="bold")
     for i, ln in enumerate(lines):
         ax.text(S.W / 2, top + i * step, ln, fontsize=size, fontweight="bold", color=S.TEXT, ha="center", va="center")
     y = top + (len(lines) - 1) * step + size * 1.1 + 20
-    ax.plot([S.W / 2 - 130, S.W / 2 + 130], [y, y], color=S.TEAL_LIGHT, lw=5)
+    ax.plot([S.W / 2 - 130, S.W / 2 + 130], [y, y], color=S.ACCENT, lw=5)
     S.footer(ax, view["hardware"])
     return S.save(fig, out / "question_card", svg=False)
 
 
 def end_card(view: dict[str, Any], out: Path) -> list[str]:
     fig, ax = S.new_card()
-    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.TEAL, lw=0))
-    S.wordmark(fig, ax, S.W / 2, 235, 104)
-    S.vitals_strip(fig, ax, view["hardware"], 345, size=28)
-    ax.plot([S.W / 2 - 170, S.W / 2 + 170], [425, 425], color=S.TEAL_LIGHT, lw=5)
+    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.ACCENT, lw=0))
+    S.paste_brand(ax, "logo", S.W / 2, 90, width=END_LOGO_W, align="center")
+    S.vitals_strip(fig, ax, view["hardware"], 425, size=28)
+    ax.plot([S.W / 2 - 170, S.W / 2 + 170], [500, 500], color=S.ACCENT, lw=5)
     mono = [S.mono_family(), S.FALLBACK_MONO]
-    ax.text(S.W / 2, 560, KIT_URL, fontsize=40, color=S.TEXT, ha="center", va="center", family=mono, fontweight="bold")
-    ax.text(S.W / 2, 690, SITE_URL, fontsize=40, color=S.TEXT, ha="center", va="center", family=mono, fontweight="bold")
-    ax.text(S.W / 2, 820, S.HANDLE, fontsize=40, color=S.TEAL_LIGHT, ha="center", va="center", family=mono, fontweight="bold")
+    ax.text(S.W / 2, 625, KIT_URL, fontsize=40, color=S.TEXT, ha="center", va="center", family=mono, fontweight="bold")
+    ax.text(S.W / 2, 745, SITE_URL, fontsize=40, color=S.TEXT, ha="center", va="center", family=mono, fontweight="bold")
+    ax.text(S.W / 2, 865, S.HANDLE, fontsize=40, color=S.ACCENT, ha="center", va="center", family=mono, fontweight="bold")
     return S.save(fig, out / "end_card", svg=False)
 
 

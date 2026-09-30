@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+from importlib import resources
 from typing import Any
 
 import matplotlib
+import numpy as np
+from PIL import Image
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -14,24 +18,26 @@ from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 # --- canvas --------------------------------------------------------------------
 W, H, DPI = 1920, 1080, 100
 HANDLE = "@packetpulsedev"
-WORDMARK = ("PACKET", "PULSE")  # drawn as two runs: off-white, then accent
+BRAND_DIR = "brand"  # render/brand/: logo.png, logo_dark.png, icon.png (shipped as package data)
 
 # --- palette -------------------------------------------------------------------
-CARD = "#0F1519"  # card background
-PANEL = "#172027"  # raised panels and chart areas
-CARD_GLASS = "#0F1519EE"  # card color at 93% opacity: lower-third plate over video
-PANEL_HI = "#1F2C35"
-GRID = "#2B3A44"
-TEAL = "#0E6B67"  # brand accent
-TEAL_LIGHT = "#4FC2BA"  # accent for text and highlights on dark
-TEXT = "#E3E9ED"
-MUTED = "#8FA1AB"
-AMBER = "#E0A93B"
-RED = "#E2554A"
-RED_DARK = "#B8433B"
-INK = "#0B1215"  # text on light fills
+# Sampled from the Packet Pulse logo: charcoal background, electric cyan accent, white. The brand images are keyed
+# out of a flat charcoal background and have slight edge fringing, so they are only ever composited on dark fills.
+CARD = "#282828"  # card background: the logo's charcoal
+PANEL = "#1F1F1F"  # darker panels: chart plot areas, table rows, lower-third preview plate
+PANEL_HI = "#333333"  # raised chips for states without a verdict (pending, not run)
+CARD_GLASS = "#282828EE"  # card color at 93% opacity: lower-third plate over video
+GRID = "#3A3A3A"  # separators, grid lines, axis spines
+ACCENT = "#01E8FC"  # brand accent: electric cyan
+ACCENT_BAND = "#01E8FC2E"  # the accent at 18% opacity: baseline-row highlight
+TEXT = "#FEFEFE"
+MUTED = "#B8BEC4"  # secondary text
+PASS = "#3DDC97"
+AMBER = "#F5B342"  # partial
+RED = "#FF5C5C"  # fail
+INK = "#141414"  # text on light or bright fills
 
-MODEL_COLORS = [TEAL_LIGHT, AMBER, "#9B8CFF", "#E27D6A", "#6FA8FF", "#B6D86A", "#D98BC2", "#7FD1E8"]
+MODEL_COLORS = [ACCENT, AMBER, "#B39DFF", "#FF7A7A", "#6FA8FF", "#B6D86A", "#D98BC2", "#7FD1E8"]
 
 FONT_CANDIDATES = ["IBM Plex Sans", "IBM Plex Sans Condensed"]
 FALLBACK_FONT = "DejaVu Sans"
@@ -94,16 +100,70 @@ def new_card(transparent: bool = False):
 
 
 def header(ax, title: str, subtitle: str | None = None) -> None:
-    ax.add_patch(Rectangle((0, 0), 14, H, color=TEAL, lw=0))
+    ax.add_patch(Rectangle((0, 0), 14, H, color=ACCENT, lw=0))
     ax.text(80, 88, title, fontsize=38, fontweight="bold", color=TEXT, va="center")
     if subtitle:
-        ax.text(80, 146, subtitle, fontsize=19, color=TEAL_LIGHT, va="center")
+        ax.text(80, 146, subtitle, fontsize=19, color=ACCENT, va="center")
 
 
 def footer(ax, hardware: str, transparent: bool = False) -> None:
-    """Hardware line bottom-left on every card, handle small bottom-right."""
+    """Hardware line bottom-left and the corner mark bottom-right, on every card."""
     ax.text(80, H - 42, hardware, fontsize=16, color=MUTED, va="center")
-    ax.text(W - 60, H - 42, HANDLE, fontsize=16, color=TEAL_LIGHT, va="center", ha="right", fontweight="bold")
+    corner_mark(ax)
+
+
+# --- brand images ---------------------------------------------------------------
+
+CORNER_ICON_H = 110  # px tall, bottom-right of every card
+CORNER_BOTTOM = 18  # px between the icon and the bottom edge
+
+
+@lru_cache(maxsize=None)
+def brand_image(name: str) -> Image.Image:
+    """A brand image from the package (render/brand/<name>.png) as RGBA, read through importlib.resources so it
+    also loads from an installed wheel. Fully transparent margins are trimmed (the supplied PNGs carry empty
+    padding below the artwork), so sizes and positions refer to the visible mark."""
+    res = resources.files(__package__).joinpath(BRAND_DIR, f"{name}.png")
+    with resources.as_file(res) as path, Image.open(path) as im:
+        rgba = im.convert("RGBA")
+    box = rgba.getchannel("A").point(lambda a: 255 if a > 0 else 0).getbbox()
+    return rgba.crop(box) if box else rgba
+
+
+@lru_cache(maxsize=None)
+def _sized(name: str, w: int, h: int) -> np.ndarray:
+    return np.asarray(brand_image(name).resize((w, h), Image.LANCZOS))
+
+
+def paste_brand(ax, name: str, x: float, y: float, *, width: int | None = None, height: int | None = None,
+                align: str = "left", zorder: float = 5) -> tuple[int, int]:
+    """Paste a brand image with its alpha at canvas pixel (x, y) (top-left, or top-centre with align="center"),
+    scaled to `width` or to `height` (aspect kept). Returns the pasted (width, height) in canvas pixels."""
+    src = brand_image(name)
+    if width is None and height is None:
+        width = src.width
+    if width is None:
+        width = round(src.width * height / src.height)
+    if height is None:
+        height = round(src.height * width / src.width)
+    left = round(x - width / 2) if align == "center" else round(x)
+    top = round(y)
+    ax.imshow(_sized(name, width, height), extent=(left, left + width, top + height, top), aspect="auto",
+              interpolation="none", zorder=zorder)
+    ax.set_xlim(0, W)  # imshow rewrites the limits
+    ax.set_ylim(H, 0)
+    return width, height
+
+
+def corner_mark(ax) -> None:
+    """The icon, then the handle in the accent, bottom-right. Drawn on every card."""
+    fig = ax.figure
+    right = W - 60
+    handle_w = text_width(fig, ax, HANDLE, fontsize=20, fontweight="bold")
+    icon_w = round(brand_image("icon").width * CORNER_ICON_H / brand_image("icon").height)
+    top = H - CORNER_BOTTOM - CORNER_ICON_H
+    paste_brand(ax, "icon", right - handle_w - 16 - icon_w, top, height=CORNER_ICON_H)
+    ax.text(right, top + CORNER_ICON_H / 2, HANDLE, fontsize=20, color=ACCENT, va="center", ha="right", fontweight="bold")
 
 
 def chip(ax, x: float, y: float, w: float, h: float, text: str, fill: str, fg: str = INK, size: int = 18) -> None:
@@ -143,7 +203,7 @@ def save(fig, base: Any, *, png: bool = True, svg: bool = True, transparent: boo
     return written
 
 
-# --- text runs, vitals strip and pulse trace (pre-run cards) ---------------------
+# --- text runs and vitals strip (pre-run cards) ---------------------
 
 
 def text_width(fig, ax, s: str, **kw: Any) -> float:
@@ -165,12 +225,6 @@ def runs(fig, ax, x: float, y: float, parts: list[tuple[str, str]], *, align: st
     return drawn
 
 
-def wordmark(fig, ax, x: float, y: float, size: int, *, align: str = "center") -> None:
-    """PACKET PULSE, two-tone, bold."""
-    a, b = WORDMARK
-    runs(fig, ax, x, y, [(a + " ", TEXT), (b, TEAL_LIGHT)], align=align, fontsize=size, fontweight="bold")
-
-
 def vitals_segments(hardware: str) -> list[str]:
     """The hardware line as monitor segments: split on ' · ', and a leading 'GPU name N GB'
     becomes 'GPU name' and 'N GB VRAM'."""
@@ -185,27 +239,17 @@ def vitals_segments(hardware: str) -> list[str]:
 
 
 def vitals_strip(fig, ax, hardware: str, y: float, *, size: int = 30, max_px: float = 1760.0) -> list[str]:
-    """Patient-monitor readout of the hardware line: monospace, teal values, muted separators.
+    """Patient-monitor readout of the hardware line: monospace, accent values, muted separators.
     Shrinks (down to 16 pt) until the strip fits max_px; returns the segments drawn."""
     segs = vitals_segments(hardware)
     parts: list[tuple[str, str]] = []
     for i, seg in enumerate(segs):
         if i:
             parts.append(("  ·  ", MUTED))
-        parts.append((seg, TEAL_LIGHT))
+        parts.append((seg, ACCENT))
     style: dict[str, Any] = {"family": [mono_family(), FALLBACK_MONO], "fontweight": "bold"}
     while size > 16 and sum(text_width(fig, ax, t, fontsize=size, **style) for t, _ in parts) > max_px:
         size -= 2
     if parts:
         runs(fig, ax, W / 2, y, parts, fontsize=size, **style)
     return segs
-
-
-def pulse_trace(ax, y: float, *, spike_x: float = 1180.0, amp: float = 190.0) -> None:
-    """A flat line that kicks into one ECG-style beat (P wave, QRS spike, T wave) and runs flat again."""
-    pts = [(0, 0), (spike_x - 330, 0), (spike_x - 300, -14), (spike_x - 270, -24), (spike_x - 240, -14), (spike_x - 210, 0),
-           (spike_x - 120, 0), (spike_x - 92, 22), (spike_x - 55, -amp), (spike_x - 8, amp * 0.42), (spike_x + 22, 0),
-           (spike_x + 110, 0), (spike_x + 160, -34), (spike_x + 215, -46), (spike_x + 270, -34), (spike_x + 320, 0), (W, 0)]
-    xs, ys = [p[0] for p in pts], [y + p[1] for p in pts]
-    for lw, alpha in ((16, 0.06), (9, 0.10), (4.5, 0.95)):  # soft glow under the trace
-        ax.plot(xs, ys, color=TEAL_LIGHT, lw=lw, alpha=alpha, solid_joinstyle="round", solid_capstyle="round", zorder=2)

@@ -24,6 +24,11 @@ ALWAYS = ["opening_vitals.png", "round_card.png", "title_card.png", "lower_third
 MODEL_FILES = [f"lower_third_{s}{suffix}.png" for s in SLUGS for suffix in ("", "_card")]
 
 
+def _pixels(im):
+    """RGB tuples of an image, row by row."""
+    return list(zip(*[iter(im.convert("RGB").tobytes())] * 3))
+
+
 @pytest.fixture(scope="module")
 def rendered(tmp_path_factory):
     out = tmp_path_factory.mktemp("pre")
@@ -63,7 +68,7 @@ def test_every_pre_file_exists_at_1920x1080(rendered):
 
 def test_manifest_lists_every_file_with_a_role(rendered):
     m = manifest_of(rendered)
-    assert m["phase"] == "pre" and m["kit_version"] == "0.2.0" and m["round"] == 4
+    assert m["phase"] == "pre" and m["kit_version"] == "0.2.1" and m["round"] == 4
     assert m["handle"] == "@packetpulsedev" and m["canvas"] == {"width": 1920, "height": 1080}
     assert m["hardware"].startswith("RTX 4070 Ti SUPER 16 GB") and m["title"] == "Ornith 1.5 at the Proving Ground"
     assert m["question"].startswith("Can a thirty-five-billion") and m["question"].endswith("?")
@@ -101,14 +106,35 @@ def test_lower_thirds_are_transparent_overlays(rendered):
             assert im.convert("RGBA").getpixel((10, 10))[3] == 255
 
 
-def test_opening_frame_has_a_pulse_trace_in_the_lower_third(rendered):
+def test_opening_frame_carries_the_full_logo_and_no_drawn_wordmark_or_trace(rendered):
     with Image.open(rendered / "opening_vitals.png") as im:
         rgb = im.convert("RGB")
-        assert rgb.getpixel((900, 20)) == (15, 21, 25), "dark card"
-        assert rgb.getpixel((5, 500)) == (14, 107, 103), "brand teal bar"
-        teal_rows = [y for y in range(720, 1080) if any(abs(rgb.getpixel((x, y))[1] - 194) < 24 and rgb.getpixel((x, y))[0] < 120 for x in range(0, 1920, 6))]
-        assert teal_rows, "the trace is drawn in the lower third"
-        assert max(teal_rows) - min(teal_rows) > 100, "flat line plus one spike"
+        assert rgb.getpixel((900, 20)) == (40, 40, 40), "charcoal card"
+        assert rgb.getpixel((5, 500)) == (1, 232, 252), "accent bar"
+        logo = S.brand_image("logo")
+        w = pre.OPENING_LOGO_W
+        h = round(logo.height * w / logo.width)
+        assert w == 1400
+        band = rgb.crop((260, 330, 1660, 330 + h))  # the pasted logo: white wordmark and cyan "Pulse"
+        px = list(_pixels(band))
+        assert sum(1 for p in px if min(p) > 235) > 3000 and sum(1 for p in px if p[0] < 30 and p[1] > 200) > 3000
+        # below the logo only the label and the vitals strip: the lower third is empty (no ECG trace)
+        lower = rgb.crop((20, 880, 1500, 940))
+        assert all(p == (40, 40, 40) for p in _pixels(lower))
+
+
+def test_end_card_has_the_logo_at_the_top(rendered):
+    with Image.open(rendered / "end_card.png") as im:
+        top = im.convert("RGB").crop((400, 90, 1520, 90 + round(S.brand_image("logo").height * pre.END_LOGO_W / S.brand_image("logo").width)))
+        assert sum(1 for p in _pixels(top) if min(p) > 235) > 3000
+
+
+def test_brand_images_are_in_the_package_and_used_by_the_cards():
+    from importlib import resources
+
+    for name in ("logo", "logo_dark", "icon"):
+        assert resources.files("llm_bench.render").joinpath("brand", f"{name}.png").is_file()
+    assert not hasattr(S, "wordmark") and not hasattr(S, "pulse_trace")
 
 
 def test_texts_on_the_cards(capture, tmp_path):
@@ -121,7 +147,7 @@ def test_texts_on_the_cards(capture, tmp_path):
     for card in ("opening_vitals", "end_card"):
         joined = " ".join(capture[card])
         assert all(s in capture[card] for s in segs) or all(s in joined for s in segs), card
-        assert "PACKET " in capture[card] and "PULSE" in capture[card]
+        assert "PACKET " not in capture[card], "the wordmark is the logo image now"
     assert {"github.com/SouthPawCode/packetpulse-kits", "packetpulse.dev", "@packetpulsedev"} <= set(capture["end_card"])
     assert "Proving Ground · Round 2" in capture["round_card"] and inst.title in capture["round_card"]
     assert "Mike" in capture["lower_third_mike"] and "Packet Pulse" in capture["lower_third_mike"]

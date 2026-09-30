@@ -21,6 +21,11 @@ SPEC_FILES = [
 MODELS = ["dry-baseline-27b", "dry-moe-35b", "dry-cloud-flash"]
 
 
+def _pixels(im):
+    """RGB tuples of an image, row by row."""
+    return list(zip(*[iter(im.convert("RGB").tobytes())] * 3))
+
+
 @pytest.fixture(scope="module")
 def rendered(dryrun_out, tmp_path_factory):
     out = tmp_path_factory.mktemp("assets")
@@ -58,7 +63,7 @@ def test_manifest_roles_and_sizes(rendered):
     roles = {f["role"] for f in manifest["files"]}
     assert {"scorecard", "tps_chart", "ttft_chart", "vram_chart", "matrix", "verdict_card", "title_card", "lower_third", "thumbnail_text"} <= roles
     assert manifest["handle"] == "@packetpulsedev" and manifest["canvas"] == {"width": 1920, "height": 1080}
-    assert manifest["hardware"].startswith("RTX 4070 Ti SUPER 16 GB") and manifest["kit_version"] == "0.2.0"
+    assert manifest["hardware"].startswith("RTX 4070 Ti SUPER 16 GB") and manifest["kit_version"] == "0.2.1"
     for f in manifest["files"]:
         p = rendered / f["file"]
         assert p.stat().st_size == f["bytes"] > 1000, f["file"]
@@ -96,8 +101,8 @@ def test_lower_third_has_transparent_variant(rendered):
 
 def test_cards_are_dark_with_brand_accent(rendered):
     with Image.open(rendered / "scorecard.png") as im:
-        assert im.convert("RGB").getpixel((1000, 800)) == (15, 21, 25), "card background #0F1519"
-        assert im.convert("RGB").getpixel((5, 500)) == (14, 107, 103), "brand teal #0E6B67 edge bar"
+        assert im.convert("RGB").getpixel((1000, 800)) == (40, 40, 40), "card background #282828"
+        assert im.convert("RGB").getpixel((5, 500)) == (1, 232, 252), "brand accent #01E8FC edge bar"
 
 
 def test_every_card_carries_hardware_line_and_handle(dryrun_out, tmp_path, capture):
@@ -116,8 +121,10 @@ def test_single_style_module_holds_all_colors():
     src = Path(assets.__file__).read_text()
     assert not re.search(r"#[0-9A-Fa-f]{6}", src), "colors belong in render/style.py"
     style_src = Path(S.__file__).read_text()
-    for token in ("#0F1519", "#0E6B67", "#4FC2BA", "#E3E9ED"):
+    for token in ("#282828", "#1F1F1F", "#3A3A3A", "#01E8FC", "#FEFEFE", "#B8BEC4", "#3DDC97", "#F5B342", "#FF5C5C", "#B39DFF", "#FF7A7A"):
         assert token in style_src
+    for old in ("#0F1519", "#0E6B67", "#4FC2BA", "#E3E9ED"):
+        assert old not in style_src, f"old palette color {old} is still in style.py"
     assert S.HANDLE == "@packetpulsedev" and (S.W, S.H) == (1920, 1080)
 
 
@@ -265,3 +272,38 @@ def test_render_rejects_results_that_break_the_schema(tmp_path, capsys):
     assert main(["render", "--results", str(bad), "--out", str(tmp_path / "a")]) == 2
     assert "schema" in capsys.readouterr().err
     assert main(["render", "--results", str(tmp_path / "nope.json"), "--out", str(tmp_path / "a")]) == 2
+
+
+# ---------------------------------------------------------------- brand images
+
+
+def test_brand_images_ship_in_the_package():
+    from importlib import resources
+
+    brand = resources.files("llm_bench.render").joinpath("brand")
+    for name in ("logo.png", "logo_dark.png", "icon.png"):
+        assert brand.joinpath(name).is_file(), name
+    logo, icon = S.brand_image("logo"), S.brand_image("icon")
+    assert logo.mode == icon.mode == "RGBA" and logo.width > icon.width > 0
+    assert logo.getchannel("A").getbbox() == (0, 0, *logo.size), "transparent margins are trimmed on load"
+    pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+    assert "render/brand/*.png" in pyproject, "the brand directory is package data"
+
+
+def test_every_card_shows_the_corner_mark(rendered):
+    """The icon and the handle sit bottom-right on every card: cyan handle pixels and bright icon pixels there."""
+    for name in ["scorecard.png", "tps_chart.png", "ttft_chart.png", "vram_chart.png", "matrix.png", "title_card.png", "thumbnail_text.png"] + [f"verdict_{m}.png" for m in MODELS]:
+        with Image.open(rendered / name) as im:
+            region = im.convert("RGB").crop((1400, 940, 1900, 1070))
+            px = list(_pixels(region))
+            assert any(p[0] > 240 and p[1] > 240 and p[2] > 240 for p in px), f"{name}: white of the icon"
+            assert any(abs(p[0] - 1) < 12 and abs(p[1] - 232) < 12 and p[2] > 240 for p in px), f"{name}: accent cyan"
+
+
+def test_render_on_the_example_instance_still_writes_every_file(tmp_path):
+    cfg = Path(__file__).resolve().parent.parent / "examples" / "instance.yaml"
+    out = tmp_path / "pre"
+    assert main(["render", "--pre", "--config", str(cfg), "--out", str(out)]) == 0
+    written = {p.name for p in out.iterdir()}
+    listed = {f["file"] for f in json.loads((out / "manifest.json").read_text())["files"]}
+    assert listed == written - {"manifest.json"} and len(listed) == 14

@@ -108,7 +108,7 @@ under [`tasks/`](tasks/). If you think a score is wrong, the rule and the raw ou
 
 ```yaml
 kit: llm-bench
-kit_version: "0.2.0"
+kit_version: "0.2.1"
 battery: battery.yaml            # default: the battery shipped with the kit
 title: "Ornith 1.5 at the Proving Ground"
 hardware: "RTX 4070 Ti SUPER 16 GB · 64 GB RAM · Ollama"   # printed on every card
@@ -152,7 +152,7 @@ Written incrementally to `results/results.json` (schema in
 ```json
 {
   "schema_version": 1, "title": "...", "hardware": "...", "started_at": "...", "finished_at": "...",
-  "kit_version": "0.2.0", "battery_version": "0.1.0", "baseline": "<model name>",
+  "kit_version": "0.2.1", "battery_version": "0.1.0", "baseline": "<model name>",
   "models": [{"name": "...", "label": "...", "backend": "ollama|openai_compat", "role": "baseline|null",
               "size_gb": 12.1, "vram_after_load_mb": 12800, "gpu_share_pct": 100, "load_seconds": 4.2, "quant": "IQ3_S"}],
   "tasks":  [{"id": 1, "name": "Speed Ladder", "kind": "auto|rubric|mixed", "weight": 1.0, "aggregate": "all"}],
@@ -212,13 +212,13 @@ It needs no `results.json`. Every file is 1920x1080 PNG and is listed, with its 
 
 | File | Role | Content |
 |---|---|---|
-| `opening_vitals.png` | `opening_vitals` | The wordmark PACKET PULSE, a patient-monitor "vitals strip" under it (the hardware line split into segments: `RTX 4070 Ti SUPER · 16 GB VRAM · 64 GB RAM · Ollama`), and a flat line running into one ECG-style spike across the lower third. A static frame. |
+| `opening_vitals.png` | `opening_vitals` | The full Packet Pulse logo (mark, wordmark, tagline) centred, and under it a "LAB VITALS" label and a patient-monitor "vitals strip" (the hardware line split into segments: `RTX 4070 Ti SUPER · 16 GB VRAM · 64 GB RAM · Ollama`). A static frame. |
 | `round_card.png` | `round_card` | With `--round N`: `Proving Ground · Round N` over the instance title. Without: the instance title over `Packet Pulse`. |
 | `title_card.png` | `title_card` | Episode title and hardware line (the same card as after the run). |
-| `lower_third_mike.png` | `lower_third_mike` | Transparent overlay: `Mike` large, `Packet Pulse` small. `lower_third_mike_card.png` (`lower_third_mike_preview`) is the same plate on the dark card. |
+| `lower_third_mike.png` | `lower_third_mike` | Transparent overlay: the icon, then `Mike` large and `Packet Pulse` small. `lower_third_mike_card.png` (`lower_third_mike_preview`) is the same plate on the dark card. |
 | `lower_third_<model>.png` | `lower_third` | One per model in `models`: its `label` (else `name`), the parameter count and active parameters when the name carries them (`35B (3B active)`), the quantization when the name carries it (`Q4_K_M`), and local or API. Transparent. `lower_third_<model>_card.png` (`lower_third_preview`) is the preview. |
-| `question_card.png` | `question_card` | `--question` set large and centred with the wordmark small (capitalised, closed with `?`); without `--question`, the placeholder "This week's question". |
-| `end_card.png` | `end_card` | Wordmark, vitals strip, then `github.com/SouthPawCode/packetpulse-kits`, `packetpulse.dev` and `@packetpulsedev`. |
+| `question_card.png` | `question_card` | `--question` set large and centred with the logo small, top-left (capitalised, closed with `?`); without `--question`, the placeholder "This week's question". |
+| `end_card.png` | `end_card` | The logo, vitals strip, then `github.com/SouthPawCode/packetpulse-kits`, `packetpulse.dev` and `@packetpulsedev`. |
 | `thumbnail_text.png` | `thumbnail_text` | `--thumbnail-text`, else the instance title, on the style card. |
 
 The scorecard, charts, matrix and verdict cards need results and still come from `render --results` after the
@@ -245,9 +245,14 @@ and `thumbnail_text.png` keep their pre-run versions) and the manifest lists bot
 | `thumbnail_text.png` | `--thumbnail-text`, else `thumbnail_text` from `results.json`, else the title, on the style card. |
 
 `<model>` is the model name reduced to lowercase letters, digits and hyphens. Every card carries the hardware
-line from `results.json` bottom-left and the handle `@packetpulsedev` small in a corner. The look (dark card
-`#0F1519`, teal `#0E6B67` and `#4FC2BA`, off-white text `#E3E9ED`, IBM Plex Sans when installed, else DejaVu
-Sans) lives in one file, [`llm_bench/render/style.py`](llm_bench/render/style.py).
+line from `results.json` bottom-left and the handle `@packetpulsedev` small in a corner. The look is the
+Packet Pulse brand: charcoal card `#282828`, darker panels `#1F1F1F`, electric cyan accent `#01E8FC`, white text
+`#FEFEFE`, secondary text `#B8BEC4`, pass `#3DDC97`, partial `#F5B342`, fail `#FF5C5C`, IBM Plex Sans when
+installed, else DejaVu Sans. The palette, fonts and the brand-image helpers live in one file,
+[`llm_bench/render/style.py`](llm_bench/render/style.py). The logo and the hexagon icon are PNGs in
+[`llm_bench/render/brand/`](llm_bench/render/brand/) (shipped with the package) and are only ever composited on the
+dark card; every card carries the icon and `@packetpulsedev` bottom-right (the end card carries the handle in its
+links instead).
 
 ## Add a model
 
@@ -278,7 +283,7 @@ LLM_BENCH_TEST_DOCKER=1 .venv/bin/python -m pytest tests/test_docker_live.py   #
 llm_bench/cli.py config.py battery.py runner.py results.py preflight.py syslog.py textutil.py
 llm_bench/backends/   ollama.py openai_compat.py dryrun.py gpu.py base.py
 llm_bench/scoring/    auto.py firewall.py validators.py tools.py rubric.py
-llm_bench/render/     style.py assets.py pre.py
+llm_bench/render/     style.py assets.py pre.py brand/ (logo.png logo_dark.png icon.png)
 battery.yaml   tasks/   examples/   run.sh   tests/
 ```
 

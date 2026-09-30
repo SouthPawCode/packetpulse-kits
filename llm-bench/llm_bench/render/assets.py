@@ -98,16 +98,18 @@ def scorecard(results: dict[str, Any], out: Path) -> list[str]:
         s = summary.get(m["name"], {})
         y = y0 + i * row_h
         base = results.get("baseline") == m["name"]
-        S.panel(ax, 70, y, 1780, row_h - 12, fill=S.TEAL if base else S.PANEL, edge=S.TEAL_LIGHT if base else None)
+        S.panel(ax, 70, y, 1780, row_h - 12)
+        if base:  # translucent accent band over the row panel
+            S.panel(ax, 70, y, 1780, row_h - 12, fill=S.ACCENT_BAND, edge=S.ACCENT)
         cy = y + (row_h - 12) / 2
         ax.text(90, cy - (10 if base else 0), short(label_of(m), 38), fontsize=24, fontweight="bold", color=S.TEXT, va="center")
         if base:
-            ax.text(90, cy + 26, "BASELINE", fontsize=13, color=S.TEXT, va="center", fontweight="bold")
+            ax.text(90, cy + 26, "BASELINE", fontsize=13, color=S.ACCENT, va="center", fontweight="bold")
         unscored = s.get("unscored_task_ids") or []
         pending_any |= bool(unscored)
         total, mx = s.get("score_total"), s.get("score_max")
         score = "n/a" if total is None else f"{total:.2f}".rstrip("0").rstrip(".") + f" / {mx:g}" + ("*" if unscored else "")
-        ax.text(810, cy, score, fontsize=30, fontweight="bold", color=S.TEAL_LIGHT if not base else S.TEXT, ha="center", va="center")
+        ax.text(810, cy, score, fontsize=30, fontweight="bold", color=S.ACCENT, ha="center", va="center")
         ax.text(1035, cy, f"{s.get('passes', 0)} / {sum(1 for t in results['tasks'] if t['weight'] > 0)}", fontsize=24, ha="center", va="center")
         ax.text(1190, cy, "n/a" if s.get("avg_tps") is None else f"{s['avg_tps']:.1f}", fontsize=24, ha="center", va="center")
         ttft = s.get("avg_ttft_ms")
@@ -117,7 +119,7 @@ def scorecard(results: dict[str, Any], out: Path) -> list[str]:
     note = "Score = sum of task scores (0 to 1 each, weights in results.json). Tok/s and TTFT are averaged over every measured run."
     if pending_any:
         note = "* Some tasks are not scored yet (rubric pending or validator unavailable). " + note
-    ax.text(80, 985, textwrap.fill(note, 170), fontsize=13, color=S.MUTED, va="center")
+    ax.text(80, 985, textwrap.fill(note, 120), fontsize=13, color=S.MUTED, va="center")
     S.footer(ax, results["hardware"])
     return S.save(fig, out / "scorecard")
 
@@ -134,7 +136,7 @@ def tps_chart(results: dict[str, Any], out: Path) -> list[str]:
     if not rungs or not models:
         no_data(ax, "No Speed Ladder data in this run")
         return S.save(fig, out / "tps_chart")
-    cx = S.chart_axes(fig, (0.075, 0.17, 0.89, 0.62))
+    cx = S.chart_axes(fig, (0.085, 0.19, 0.88, 0.60))
     n = len(models)
     width = 0.8 / n
     vmax = 0.0
@@ -170,7 +172,7 @@ def ttft_chart(results: dict[str, Any], out: Path) -> list[str]:
     if not rungs or not models:
         no_data(ax, "No Speed Ladder data in this run")
         return S.save(fig, out / "ttft_chart")
-    cx = S.chart_axes(fig, (0.075, 0.17, 0.89, 0.62))
+    cx = S.chart_axes(fig, (0.085, 0.19, 0.88, 0.60))
     vals = [r["ttft_ms"] for p in per.values() for r in p.values() if r["ttft_ms"]]
     use_log = bool(vals) and max(vals) / max(min(vals), 1) > 12
     for m in models:
@@ -199,10 +201,10 @@ def ttft_chart(results: dict[str, Any], out: Path) -> list[str]:
         cx.yaxis.set_minor_locator(LogLocator(base=10, subs=()))
         cx.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v / 1000:g} s" if v >= 1000 else f"{v:g} ms"))
         cx.set_ylim(max(min(vals) / 2, 1), max(vals) * 2.2)
-        ylabel = "time to first token (log scale, lower is better)"
+        ylabel = "TTFT, log scale (lower is better)"
     else:
         cx.set_ylim(0, (max(vals) if vals else 1) * 1.25)
-        ylabel = "time to first token in ms (lower is better)"
+        ylabel = "TTFT in ms (lower is better)"
     cx.set_xticks(range(len(rungs)))
     cx.set_xticklabels([rung_label(r) for r in rungs])
     cx.set_xlim(-0.6, len(rungs) - 0.4)
@@ -232,7 +234,7 @@ def vram_chart(results: dict[str, Any], out: Path) -> list[str]:
     if not models:
         no_data(ax, "No models in this run")
         return S.save(fig, out / "vram_chart")
-    cx = S.chart_axes(fig, (0.26, 0.17, 0.70, 0.62))
+    cx = S.chart_axes(fig, (0.26, 0.19, 0.70, 0.60))
     names = [short(label_of(m), 30) for m in models]
     ys = list(range(len(models)))
     vmax = 16.0
@@ -280,7 +282,7 @@ def matrix(results: dict[str, Any], out: Path) -> list[str]:
     if not models or not tasks:
         no_data(ax, "No results")
         return S.save(fig, out / "matrix")
-    left, right, top, bottom = 80, 1840, 200, 970
+    left, right, top, bottom = 80, 1840, 200, 935
     label_w = 520
     col_w = (right - left - label_w) / len(models)
     row_h = (bottom - top - 70) / len(tasks)
@@ -305,17 +307,20 @@ def matrix(results: dict[str, Any], out: Path) -> list[str]:
                 note = (rows[0].get("details") or {}).get("score_note", "")
                 txt, fill, fg = ("UNAVAILABLE" if "unavailable" in note else "PENDING"), S.PANEL_HI, S.AMBER
             elif score >= 0.999:
-                txt, fill, fg = "PASS", S.TEAL_LIGHT, S.INK
+                txt, fill, fg = "PASS", S.PASS, S.INK
             elif score > 0:
                 txt, fill, fg = f"PARTIAL {score:.2f}", S.AMBER, S.INK
             else:
-                txt, fill, fg = "FAIL", S.RED_DARK, S.TEXT
+                txt, fill, fg = "FAIL", S.RED, S.INK
             S.chip(ax, x + 8, y + 5, col_w - 16, row_h - 10, txt, fill, fg, size=15 if len(models) > 3 else 17)
     return S.save(fig, out / "matrix")
 
 
 # ---------------------------------------------------------------- cards
 
+
+LOGO_SMALL_W = 520  # the full logo, small, top-left of the pre-run and title cards
+PLATE_MIN_W, PLATE_MAX_W = 780, 1500  # lower-third plate width range in px
 
 QUESTION_LABELS = [
     ("latency_sensitive", "Latency-sensitive use"),
@@ -342,11 +347,13 @@ def verdict_card(results: dict[str, Any], m: dict[str, Any], out: Path) -> list[
         bits.append(f"cost {fmt_cost(m, s)}")  # "n/a" when the instance had no pricing, never $0
     if bits:
         ax.text(80, 205, "  ·  ".join(bits), fontsize=22, color=S.MUTED, va="center")
-    colors = {"yes": (S.TEAL_LIGHT, S.INK), "no": (S.RED_DARK, S.TEXT), "maybe": (S.AMBER, S.INK)}
+    colors = {"yes": (S.PASS, S.INK), "no": (S.RED, S.INK), "maybe": (S.AMBER, S.INK)}
     for i, (key, label) in enumerate(QUESTION_LABELS):
         y = 280 + i * 130
         final = key == "would_i_run_it"
-        S.panel(ax, 80, y, 1760, 112, fill=S.TEAL if final else S.PANEL, edge=S.TEAL_LIGHT if final else None)
+        S.panel(ax, 80, y, 1760, 112)
+        if final:
+            S.panel(ax, 80, y, 1760, 112, fill=S.ACCENT_BAND, edge=S.ACCENT)
         ax.text(120, y + 56, label, fontsize=30 if final else 27, fontweight="bold" if final else "normal", color=S.TEXT, va="center")
         ans = (v.get(key) or "").lower()
         fill, fg = colors.get(ans, (S.PANEL_HI, S.MUTED))
@@ -359,28 +366,41 @@ def verdict_card(results: dict[str, Any], m: dict[str, Any], out: Path) -> list[
 
 def title_card(results: dict[str, Any], out: Path) -> list[str]:
     fig, ax = S.new_card()
-    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.TEAL, lw=0))
-    ax.text(110, 250, "THE PACKET PULSE PROVING GROUND", fontsize=22, color=S.TEAL_LIGHT, fontweight="bold", va="center")
+    ax.add_patch(S.Rectangle((0, 0), 14, S.H, color=S.ACCENT, lw=0))
+    S.paste_brand(ax, "logo", 70, 60, width=LOGO_SMALL_W)
     lines, size = fit_text(results["title"], max_lines=3, sizes=[84, 72, 64, 56, 48], char_em=0.66)
     for i, ln in enumerate(lines):
-        ax.text(110, 390 + i * (size * 1.75), ln, fontsize=size, fontweight="bold", color=S.TEXT, va="center")
-    y = 390 + len(lines) * size * 1.75 + 40
-    ax.plot([110, 610], [y, y], color=S.TEAL_LIGHT, lw=5)
+        ax.text(110, 400 + i * (size * 1.75), ln, fontsize=size, fontweight="bold", color=S.TEXT, va="center")
+    y = 400 + len(lines) * size * 1.75 + 40
+    ax.plot([110, 610], [y, y], color=S.ACCENT, lw=5)
     ax.text(110, y + 70, results["hardware"], fontsize=30, color=S.TEXT, va="center")
     ax.text(110, y + 135, "  ·  ".join(short(label_of(m), 28) for m in results["models"][:4]), fontsize=22, color=S.MUTED, va="center")
-    ax.text(S.W - 60, S.H - 42, S.HANDLE, fontsize=16, color=S.TEAL_LIGHT, va="center", ha="right", fontweight="bold")
+    S.corner_mark(ax)
     return S.save(fig, out / "title_card", svg=False)
 
 
 def _plate(results: dict[str, Any], title: str, line: str, transparent: bool) -> Any:
-    """The lower-third plate: a large name, one accent line under it, the hardware line and the handle."""
+    """The lower-third plate: the icon at the left, a large name, one accent line under it, the hardware line and the
+    handle. The plate is as wide as its longest line needs (PLATE_MIN_W to PLATE_MAX_W)."""
     fig, ax = S.new_card(transparent=transparent)
-    S.panel(ax, 80, 800, 1000, 170, fill=S.CARD_GLASS if transparent else S.PANEL)
-    ax.add_patch(S.Rectangle((80, 800), 12, 170, color=S.TEAL_LIGHT, lw=0))
-    ax.text(124, 850, short(title, 40), fontsize=34, fontweight="bold", color=S.TEXT, va="center")
-    ax.text(124, 900, line, fontsize=22, color=S.TEAL_LIGHT, va="center")
-    ax.text(124, 944, short(results["hardware"], 70), fontsize=13, color=S.MUTED, va="center")
-    ax.text(1060, 950, S.HANDLE, fontsize=13, color=S.TEAL_LIGHT, va="bottom", ha="right", fontweight="bold")
+    iw = round(S.brand_image("icon").width * 90 / S.brand_image("icon").height)
+    x = 116 + iw + 34
+    name = short(title, 40)
+    hw = short(results["hardware"], 70)
+    size = 34
+    while size > 22 and S.text_width(fig, ax, name, fontsize=size, fontweight="bold") > PLATE_MAX_W - (x - 80) - 40:
+        size -= 2
+    handle_w = S.text_width(fig, ax, S.HANDLE, fontsize=13, fontweight="bold")
+    need = max(S.text_width(fig, ax, name, fontsize=size, fontweight="bold"), S.text_width(fig, ax, line, fontsize=22),
+               S.text_width(fig, ax, hw, fontsize=13) + 40 + handle_w)
+    plate_w = int(min(PLATE_MAX_W, max(PLATE_MIN_W, x - 80 + need + 40)))
+    S.panel(ax, 80, 800, plate_w, 170, fill=S.CARD_GLASS if transparent else S.PANEL)
+    ax.add_patch(S.Rectangle((80, 800), 12, 170, color=S.ACCENT, lw=0))
+    S.paste_brand(ax, "icon", 116, 840, height=90)
+    ax.text(x, 850, name, fontsize=size, fontweight="bold", color=S.TEXT, va="center")
+    ax.text(x, 900, line, fontsize=22, color=S.ACCENT, va="center")
+    ax.text(x, 944, hw, fontsize=13, color=S.MUTED, va="center")
+    ax.text(80 + plate_w - 20, 950, S.HANDLE, fontsize=13, color=S.ACCENT, va="bottom", ha="right", fontweight="bold")
     return fig
 
 
@@ -414,15 +434,15 @@ def lower_third_named(results: dict[str, Any], title: str, line: str, base: str,
 
 def thumbnail(results: dict[str, Any], out: Path, text: str) -> list[str]:
     fig, ax = S.new_card()
-    ax.add_patch(S.Rectangle((0, 0), S.W, 18, color=S.TEAL, lw=0))
+    ax.add_patch(S.Rectangle((0, 0), S.W, 18, color=S.ACCENT, lw=0))
     lines, size = fit_text(text.upper(), max_lines=4, sizes=[150, 130, 112, 96, 84, 72, 60], char_em=0.80, avail_px=1680)
     step = size * 1.38
     total = len(lines) * step
     y0 = S.H / 2 - total / 2 + step / 2 + 20
     for i, ln in enumerate(lines):
-        ax.text(110, y0 + i * step, ln, fontsize=size, fontweight="bold", color=S.TEXT if i < len(lines) - 1 or len(lines) == 1 else S.TEAL_LIGHT, va="center")
-    ax.plot([110, 700], [y0 + total - step * 0.2, y0 + total - step * 0.2], color=S.TEAL_LIGHT, lw=6)
-    ax.text(110, 110, "PACKET PULSE PROVING GROUND", fontsize=22, color=S.TEAL_LIGHT, fontweight="bold", va="center")
+        ax.text(110, y0 + i * step, ln, fontsize=size, fontweight="bold", color=S.TEXT if i < len(lines) - 1 or len(lines) == 1 else S.ACCENT, va="center")
+    ax.plot([110, 700], [y0 + total - step * 0.2, y0 + total - step * 0.2], color=S.ACCENT, lw=6)
+    S.paste_brand(ax, "logo", 70, 50, width=LOGO_SMALL_W)
     S.footer(ax, results["hardware"])
     return S.save(fig, out / "thumbnail_text", svg=False)
 

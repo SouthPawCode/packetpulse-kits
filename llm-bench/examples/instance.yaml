@@ -1,6 +1,6 @@
 # A filled example: the 27B baseline, a local GGUF pulled from Hugging Face, and a cloud model through its API.
 kit: llm-bench
-kit_version: "0.2.0"
+kit_version: "0.2.1"
 battery: battery.yaml            # or a subset file
 title: "Ornith 1.5 at the Proving Ground"
 hardware: "RTX 4070 Ti SUPER 16 GB · 64 GB RAM · Ollama"   # printed on every card

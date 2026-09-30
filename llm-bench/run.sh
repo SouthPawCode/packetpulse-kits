@@ -9,7 +9,7 @@
 # and thumbnail cards) into assets-pre/. A normal run renders them too when assets-pre/ is missing.
 # Works from a checkout of packetpulse-kits/llm-bench, and from a build directory that holds only
 # instance.yaml and this script (it then installs the kit from the pinned git tag).
-#   KIT_REF=v0.2.0    git tag to install when not run from a checkout
+#   KIT_REF=v0.2.1    git tag to install when not run from a checkout
 #   KIT_REPO=...      git URL override
 #   PYTHON=python3    interpreter for the virtualenv (needs 3.11 or newer)
 set -euo pipefail
@@ -65,7 +65,7 @@ if ! "$PY" -c 'import llm_bench' 2>/dev/null; then
   if [ -f "$HERE/pyproject.toml" ] && [ -d "$HERE/llm_bench" ]; then
     "$PY" -m pip install --quiet -e "$HERE"
   else
-    KIT_REF="${KIT_REF:-v0.2.0}"
+    KIT_REF="${KIT_REF:-v0.2.1}"
     KIT_REPO="${KIT_REPO:-https://github.com/SouthPawCode/packetpulse-kits}"
     "$PY" -m pip install --quiet "llm-bench @ git+${KIT_REPO}@${KIT_REF}#subdirectory=llm-bench"
   fi

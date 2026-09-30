@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-bench"
-version = "0.2.0"
+version = "0.2.1"
 description = "The Packet Pulse Proving Ground: a fixed benchmark battery for local and cloud language models."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,6 +26,8 @@ llm-bench = "llm_bench.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["llm_bench"]
+# The brand images the cards are composed from (render/brand/*.png) ship inside the package.
+artifacts = ["llm_bench/render/brand/*.png"]
 
 # The battery and its fixtures live next to the package in a checkout; a wheel
 # carries a copy inside the package so `pip install git+...` works anywhere.
