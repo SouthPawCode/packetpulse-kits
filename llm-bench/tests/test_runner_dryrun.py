@@ -34,7 +34,7 @@ def results(dryrun_out):
 
 def test_results_json_matches_spec_schema(results):
     assert TOP_KEYS <= set(results)
-    assert results["schema_version"] == 1 and results["kit_version"] == "0.1.0" and results["battery_version"] == "0.1.0"
+    assert results["schema_version"] == 1 and results["kit_version"] == "0.2.0" and results["battery_version"] == "0.1.0"
     assert results["finished_at"] and results["started_at"] <= results["finished_at"]
     assert validate_results(results) == []
     for m in results["models"]:

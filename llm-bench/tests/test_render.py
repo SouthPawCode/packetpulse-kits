@@ -58,7 +58,7 @@ def test_manifest_roles_and_sizes(rendered):
     roles = {f["role"] for f in manifest["files"]}
     assert {"scorecard", "tps_chart", "ttft_chart", "vram_chart", "matrix", "verdict_card", "title_card", "lower_third", "thumbnail_text"} <= roles
     assert manifest["handle"] == "@packetpulsedev" and manifest["canvas"] == {"width": 1920, "height": 1080}
-    assert manifest["hardware"].startswith("RTX 4070 Ti SUPER 16 GB") and manifest["kit_version"] == "0.1.0"
+    assert manifest["hardware"].startswith("RTX 4070 Ti SUPER 16 GB") and manifest["kit_version"] == "0.2.0"
     for f in manifest["files"]:
         p = rendered / f["file"]
         assert p.stat().st_size == f["bytes"] > 1000, f["file"]

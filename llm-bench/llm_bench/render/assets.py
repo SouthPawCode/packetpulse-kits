@@ -372,29 +372,43 @@ def title_card(results: dict[str, Any], out: Path) -> list[str]:
     return S.save(fig, out / "title_card", svg=False)
 
 
-def _lower_third(results: dict[str, Any], m: dict[str, Any], transparent: bool) -> Any:
+def _plate(results: dict[str, Any], title: str, line: str, transparent: bool) -> Any:
+    """The lower-third plate: a large name, one accent line under it, the hardware line and the handle."""
     fig, ax = S.new_card(transparent=transparent)
     S.panel(ax, 80, 800, 1000, 170, fill=S.CARD_GLASS if transparent else S.PANEL)
     ax.add_patch(S.Rectangle((80, 800), 12, 170, color=S.TEAL_LIGHT, lw=0))
-    ax.text(124, 850, short(label_of(m), 40), fontsize=34, fontweight="bold", color=S.TEXT, va="center")
-    bits = []
-    if m.get("size_gb"):
-        bits.append(f"{m['size_gb']:g} GB")
-    if m.get("quant"):
-        bits.append(str(m["quant"]))
-    if m.get("gpu_share_pct") is not None:
-        bits.append(f"{m['gpu_share_pct']}% GPU")
-    bits.append("API" if m.get("backend") == "openai_compat" else "local")
-    ax.text(124, 900, "  ·  ".join(bits), fontsize=22, color=S.TEAL_LIGHT, va="center")
+    ax.text(124, 850, short(title, 40), fontsize=34, fontweight="bold", color=S.TEXT, va="center")
+    ax.text(124, 900, line, fontsize=22, color=S.TEAL_LIGHT, va="center")
     ax.text(124, 944, short(results["hardware"], 70), fontsize=13, color=S.MUTED, va="center")
     ax.text(1060, 950, S.HANDLE, fontsize=13, color=S.TEAL_LIGHT, va="bottom", ha="right", fontweight="bold")
     return fig
 
 
-def lower_third(results: dict[str, Any], m: dict[str, Any], out: Path) -> tuple[list[str], list[str]]:
-    base = slug(m["name"])
+def _lower_third(results: dict[str, Any], m: dict[str, Any], transparent: bool) -> Any:
+    bits = []
+    if m.get("size_gb"):
+        bits.append(f"{m['size_gb']:g} GB")
+    elif m.get("params_label"):  # before the run the size on disk is unknown; the name may carry the parameter count
+        bits.append(str(m["params_label"]))
+    if m.get("quant"):
+        bits.append(str(m["quant"]))
+    if m.get("gpu_share_pct") is not None:
+        bits.append(f"{m['gpu_share_pct']}% GPU")
+    bits.append("API" if m.get("backend") == "openai_compat" else "local")
+    return _plate(results, label_of(m), "  ·  ".join(bits), transparent)
+
+
+def lower_third(results: dict[str, Any], m: dict[str, Any], out: Path, base: str | None = None) -> tuple[list[str], list[str]]:
+    base = base or slug(m["name"])
     a = S.save(_lower_third(results, m, True), out / f"lower_third_{base}", svg=False, transparent=True)
     b = S.save(_lower_third(results, m, False), out / f"lower_third_{base}_card", svg=False)
+    return a, b
+
+
+def lower_third_named(results: dict[str, Any], title: str, line: str, base: str, out: Path) -> tuple[list[str], list[str]]:
+    """A lower third for a person or a label rather than a model: lower_third_<base>.png and its _card preview."""
+    a = S.save(_plate(results, title, line, True), out / f"lower_third_{base}", svg=False, transparent=True)
+    b = S.save(_plate(results, title, line, False), out / f"lower_third_{base}_card", svg=False)
     return a, b
 
 
@@ -435,22 +449,45 @@ def fit_text(text: str, *, max_lines: int, sizes: list[int], char_em: float, ava
 # ---------------------------------------------------------------- driver
 
 
+def manifest_entries(out: Path, name: str, role: str, fmts: list[str], model: str | None = None, transparent: bool = False) -> list[dict[str, Any]]:
+    """One manifest entry per written format of `name` (file, role, format, model, transparent, size, bytes)."""
+    entries: list[dict[str, Any]] = []
+    for f in fmts:
+        p = out / f"{name}.{f}"
+        entry: dict[str, Any] = {"file": p.name, "role": role, "format": f, "model": model, "transparent": transparent}
+        if f == "png":
+            with Image.open(p) as im:
+                entry["width"], entry["height"] = im.size
+        else:
+            entry["width"], entry["height"] = S.W, S.H
+        entry["bytes"] = p.stat().st_size
+        entries.append(entry)
+    return entries
+
+
+def earlier_manifest(out: Path, phase: str) -> list[dict[str, Any]]:
+    """Entries of a manifest.json already in `out` that belong to `phase` ("pre" entries carry "phase": "pre";
+    post-run entries carry no phase) and whose file is still there."""
+    try:
+        old = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(old, dict):
+        return []
+    return [f for f in old.get("files", []) if isinstance(f, dict) and f.get("file") and (f.get("phase") or "post") == phase
+            and (out / f["file"]).is_file()]
+
+
 def render_all(results: dict[str, Any], out_dir: Path, *, thumbnail_text: str | None = None, results_path: str | Path | None = None) -> dict[str, Any]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     files: list[dict[str, Any]] = []
+    # Files an earlier `render --pre` left in this directory are the pre-run versions: leave them alone.
+    kept = earlier_manifest(out, "pre")
+    owned = {f["file"] for f in kept}
 
     def register(name: str, role: str, fmts: list[str], model: str | None = None, transparent: bool = False) -> None:
-        for f in fmts:
-            p = out / f"{name}.{f}"
-            entry: dict[str, Any] = {"file": p.name, "role": role, "format": f, "model": model, "transparent": transparent}
-            if f == "png":
-                with Image.open(p) as im:
-                    entry["width"], entry["height"] = im.size
-            else:
-                entry["width"], entry["height"] = S.W, S.H
-            entry["bytes"] = p.stat().st_size
-            files.append(entry)
+        files.extend(manifest_entries(out, name, role, fmts, model, transparent))
 
     register("scorecard", "scorecard", scorecard(results, out))
     register("tps_chart", "tps_chart", tps_chart(results, out))
@@ -460,14 +497,19 @@ def render_all(results: dict[str, Any], out_dir: Path, *, thumbnail_text: str | 
     for m in results["models"]:
         sl = slug(m["name"])
         register(f"verdict_{sl}", "verdict_card", verdict_card(results, m, out), model=m["name"])
-    register("title_card", "title_card", title_card(results, out))
+    if "title_card.png" not in owned:
+        register("title_card", "title_card", title_card(results, out))
     for m in results["models"]:
         sl = slug(m["name"])
+        if f"lower_third_{sl}.png" in owned:
+            continue
         a, b = lower_third(results, m, out)
         register(f"lower_third_{sl}", "lower_third", a, model=m["name"], transparent=True)
         register(f"lower_third_{sl}_card", "lower_third_preview", b, model=m["name"])
-    text = thumbnail_text or results.get("thumbnail_text") or results["title"]
-    register("thumbnail_text", "thumbnail_text", thumbnail(results, out, text))
+    if "thumbnail_text.png" not in owned:
+        text = thumbnail_text or results.get("thumbnail_text") or results["title"]
+        register("thumbnail_text", "thumbnail_text", thumbnail(results, out, text))
+    files += [f for f in kept if f["file"] not in {x["file"] for x in files}]
 
     manifest = {
         "schema_version": 1,

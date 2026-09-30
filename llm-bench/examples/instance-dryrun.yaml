@@ -1,7 +1,7 @@
 # Offline example: fake models with fixture outputs and fake timings. No network, no GPU.
 #   python -m llm_bench run --config examples/instance-dryrun.yaml --out /tmp/pg-out
 kit: llm-bench
-kit_version: "0.1.0"
+kit_version: "0.2.0"
 battery: battery.yaml
 title: "Dry Run at the Proving Ground"
 hardware: "RTX 4070 Ti SUPER 16 GB · 64 GB RAM · Ollama"

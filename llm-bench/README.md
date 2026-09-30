@@ -17,14 +17,18 @@ Reference hardware for the channel numbers: RTX 4070 Ti SUPER 16 GB, 64 GB RAM, 
 
 ```bash
 ./run.sh            # preflight, then run, then render; reads ./instance.yaml
+./run.sh pre        # only the assets that need no results, into assets-pre/ (see "Before the run" below)
 ```
 
 That is the whole loop. `run.sh` creates `.venv` if missing, installs the kit (`pip install -e .` from a
 checkout, or from the pinned git tag when run from a build directory that holds only `instance.yaml` and
-`run.sh`), checks the environment, runs every task for every model, and renders the assets. Options:
+`run.sh`), renders the pre-run assets if `assets-pre/` is missing, checks the environment, runs every task for
+every model, and renders the assets. Options:
 
 ```
 ./run.sh [--config instance.yaml] [--out results] [--assets assets] [--tasks 0,1,2] [--force] [--dry-run]
+         [--pre-assets assets-pre] [--round N] [--question "TEXT"] [--thumbnail-text "TEXT"]
+./run.sh pre [--config instance.yaml] [--pre-assets assets-pre] [--round N] [--question "TEXT"] [--thumbnail-text "TEXT"]
 ```
 
 Needs Python 3.11 or newer. Docker is optional but task 4 is only scored with it (see below).
@@ -56,6 +60,8 @@ python -m llm_bench preflight --config instance.yaml [--force] [--dry-run]
 python -m llm_bench run       --config instance.yaml --out results/ [--tasks 0,1,2] [--force] [--dry-run]
 python -m llm_bench score     --results results/results.json --rubric results/rubric.yaml
 python -m llm_bench render    --results results/results.json --out assets/ [--thumbnail-text "TEXT"]
+python -m llm_bench render --pre --config instance.yaml --out assets-pre/ [--question "TEXT"] [--round N] [--thumbnail-text "TEXT"]
+                                                          (alias: python -m llm_bench pre-render ...)
 python -m llm_bench validate  --config instance.yaml [--results results.json]
 ```
 
@@ -67,7 +73,7 @@ refused. `--tasks` with an existing `results.json` merges the new rows into it.
 | `preflight` | Endpoints reachable; models present (Ollama `/api/tags`) or pullable when `pull: true`; VRAM/RAM against model size; no non-benchmark model loaded; docker available for validators. Prints a JSON report. |
 | `run` | Runs every model in the instance over the selected tasks. Writes `results.json` after every row, so a crash keeps partial data; raw model output goes to `outputs/<model>/<task>.md`; progress is one line per task on stderr. Also writes `rubric.yaml` for the tasks you score. |
 | `score` | Merges your rubric scores (tasks 3 and 9) and verdict answers (task 10) into `results.json` and recomputes the summary. |
-| `render` | Writes the assets and `manifest.json` (below). |
+| `render` | Writes the assets and `manifest.json` (below). With `--pre`, writes only the assets that need no results, from `--config` (see "Before the run"). |
 | `validate` | Schema-checks the instance and the battery, and that every fixture exists. No network. |
 
 ## The battery
@@ -102,7 +108,7 @@ under [`tasks/`](tasks/). If you think a score is wrong, the rule and the raw ou
 
 ```yaml
 kit: llm-bench
-kit_version: "0.1.0"
+kit_version: "0.2.0"
 battery: battery.yaml            # default: the battery shipped with the kit
 title: "Ornith 1.5 at the Proving Ground"
 hardware: "RTX 4070 Ti SUPER 16 GB · 64 GB RAM · Ollama"   # printed on every card
@@ -146,7 +152,7 @@ Written incrementally to `results/results.json` (schema in
 ```json
 {
   "schema_version": 1, "title": "...", "hardware": "...", "started_at": "...", "finished_at": "...",
-  "kit_version": "0.1.0", "battery_version": "0.1.0", "baseline": "<model name>",
+  "kit_version": "0.2.0", "battery_version": "0.1.0", "baseline": "<model name>",
   "models": [{"name": "...", "label": "...", "backend": "ollama|openai_compat", "role": "baseline|null",
               "size_gb": 12.1, "vram_after_load_mb": 12800, "gpu_share_pct": 100, "load_seconds": 4.2, "quant": "IQ3_S"}],
   "tasks":  [{"id": 1, "name": "Speed Ladder", "kind": "auto|rubric|mixed", "weight": 1.0, "aggregate": "all"}],
@@ -189,9 +195,41 @@ Task 10 has a `verdict:` block (`latency_sensitive`, `quality_sensitive`, `vram_
 `python -m llm_bench score --results results/results.json --rubric results/rubric.yaml`, then render again.
 Re-running `run` keeps the scores you already entered.
 
+## Before the run: `render --pre`
+
+Assets that do not depend on benchmark results are rendered from `instance.yaml` alone, before the run, so they
+exist when you sit down to record:
+
+```bash
+python -m llm_bench render --pre --config instance.yaml --out assets-pre/ \
+    --round 1 --question "can a thirty-five-billion mixture-of-experts beat the twenty-seven-billion model I already run" \
+    --thumbnail-text "Will it fit in 16 GB?"
+# or:  ./run.sh pre --round 1 --question "..."        (alias for the command: python -m llm_bench pre-render ...)
+```
+
+It needs no `results.json`. Every file is 1920x1080 PNG and is listed, with its `role`, in
+`assets-pre/manifest.json` (`"phase": "pre"`; the manifest also records the round and the question).
+
+| File | Role | Content |
+|---|---|---|
+| `opening_vitals.png` | `opening_vitals` | The wordmark PACKET PULSE, a patient-monitor "vitals strip" under it (the hardware line split into segments: `RTX 4070 Ti SUPER · 16 GB VRAM · 64 GB RAM · Ollama`), and a flat line running into one ECG-style spike across the lower third. A static frame. |
+| `round_card.png` | `round_card` | With `--round N`: `Proving Ground · Round N` over the instance title. Without: the instance title over `Packet Pulse`. |
+| `title_card.png` | `title_card` | Episode title and hardware line (the same card as after the run). |
+| `lower_third_mike.png` | `lower_third_mike` | Transparent overlay: `Mike` large, `Packet Pulse` small. `lower_third_mike_card.png` (`lower_third_mike_preview`) is the same plate on the dark card. |
+| `lower_third_<model>.png` | `lower_third` | One per model in `models`: its `label` (else `name`), the parameter count and active parameters when the name carries them (`35B (3B active)`), the quantization when the name carries it (`Q4_K_M`), and local or API. Transparent. `lower_third_<model>_card.png` (`lower_third_preview`) is the preview. |
+| `question_card.png` | `question_card` | `--question` set large and centred with the wordmark small (capitalised, closed with `?`); without `--question`, the placeholder "This week's question". |
+| `end_card.png` | `end_card` | Wordmark, vitals strip, then `github.com/SouthPawCode/packetpulse-kits`, `packetpulse.dev` and `@packetpulsedev`. |
+| `thumbnail_text.png` | `thumbnail_text` | `--thumbnail-text`, else the instance title, on the style card. |
+
+The scorecard, charts, matrix and verdict cards need results and still come from `render --results` after the
+run. Use separate output directories (`assets-pre/` and `assets/`). If both land in one directory, the post-run
+render leaves the files `render --pre` wrote alone (the shared names `title_card.png`, `lower_third_<model>.png`
+and `thumbnail_text.png` keep their pre-run versions) and the manifest lists both sets; pre-run entries carry
+`"phase": "pre"`.
+
 ## Assets
 
-`render` writes everything to `assets/` and lists every file, with its role, size and dimensions, in
+`render --results` writes everything to `assets/` and lists every file, with its role, size and dimensions, in
 `assets/manifest.json`. PNGs are 1920x1080; charts and cards that go into blog posts also come as SVG.
 
 | File | Content |
@@ -240,7 +278,7 @@ LLM_BENCH_TEST_DOCKER=1 .venv/bin/python -m pytest tests/test_docker_live.py   #
 llm_bench/cli.py config.py battery.py runner.py results.py preflight.py syslog.py textutil.py
 llm_bench/backends/   ollama.py openai_compat.py dryrun.py gpu.py base.py
 llm_bench/scoring/    auto.py firewall.py validators.py tools.py rubric.py
-llm_bench/render/     style.py assets.py
+llm_bench/render/     style.py assets.py pre.py
 battery.yaml   tasks/   examples/   run.sh   tests/
 ```
 

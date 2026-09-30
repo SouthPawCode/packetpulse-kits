@@ -14,6 +14,7 @@ from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 # --- canvas --------------------------------------------------------------------
 W, H, DPI = 1920, 1080, 100
 HANDLE = "@packetpulsedev"
+WORDMARK = ("PACKET", "PULSE")  # drawn as two runs: off-white, then accent
 
 # --- palette -------------------------------------------------------------------
 CARD = "#0F1519"  # card background
@@ -34,6 +35,8 @@ MODEL_COLORS = [TEAL_LIGHT, AMBER, "#9B8CFF", "#E27D6A", "#6FA8FF", "#B6D86A", "
 
 FONT_CANDIDATES = ["IBM Plex Sans", "IBM Plex Sans Condensed"]
 FALLBACK_FONT = "DejaVu Sans"
+MONO_CANDIDATES = ["IBM Plex Mono"]
+FALLBACK_MONO = "DejaVu Sans Mono"
 
 
 def font_family() -> str:
@@ -42,6 +45,14 @@ def font_family() -> str:
         if c in names:
             return c
     return FALLBACK_FONT
+
+
+def mono_family() -> str:
+    names = {f.name for f in font_manager.fontManager.ttflist}
+    for c in MONO_CANDIDATES:
+        if c in names:
+            return c
+    return FALLBACK_MONO
 
 
 def setup() -> None:
@@ -130,3 +141,71 @@ def save(fig, base: Any, *, png: bool = True, svg: bool = True, transparent: boo
         written.append("svg")
     plt.close(fig)
     return written
+
+
+# --- text runs, vitals strip and pulse trace (pre-run cards) ---------------------
+
+
+def text_width(fig, ax, s: str, **kw: Any) -> float:
+    """Rendered width in canvas pixels of `s` drawn with these text properties."""
+    t = ax.text(0, 0, s, **kw)
+    w = t.get_window_extent(renderer=fig.canvas.get_renderer()).width
+    t.remove()
+    return w * (W / (fig.get_figwidth() * fig.dpi))
+
+
+def runs(fig, ax, x: float, y: float, parts: list[tuple[str, str]], *, align: str = "center", **kw: Any) -> list[Any]:
+    """Draw consecutive text runs [(text, color)] on one baseline, centred or left-aligned at x."""
+    widths = [text_width(fig, ax, t, **kw) for t, _ in parts]
+    cx = x - sum(widths) / 2 if align == "center" else x
+    drawn = []
+    for (t, color), w in zip(parts, widths):
+        drawn.append(ax.text(cx, y, t, color=color, ha="left", va="center", **kw))
+        cx += w
+    return drawn
+
+
+def wordmark(fig, ax, x: float, y: float, size: int, *, align: str = "center") -> None:
+    """PACKET PULSE, two-tone, bold."""
+    a, b = WORDMARK
+    runs(fig, ax, x, y, [(a + " ", TEXT), (b, TEAL_LIGHT)], align=align, fontsize=size, fontweight="bold")
+
+
+def vitals_segments(hardware: str) -> list[str]:
+    """The hardware line as monitor segments: split on ' · ', and a leading 'GPU name N GB'
+    becomes 'GPU name' and 'N GB VRAM'."""
+    import re
+
+    segs = [p.strip() for p in hardware.split("·") if p.strip()]
+    if segs:
+        m = re.match(r"^(.*\S)\s+(\d+(?:\.\d+)?)\s*GB$", segs[0], re.I)
+        if m and "ram" not in segs[0].lower():
+            segs[0:1] = [m.group(1), f"{m.group(2)} GB VRAM"]
+    return segs
+
+
+def vitals_strip(fig, ax, hardware: str, y: float, *, size: int = 30, max_px: float = 1760.0) -> list[str]:
+    """Patient-monitor readout of the hardware line: monospace, teal values, muted separators.
+    Shrinks (down to 16 pt) until the strip fits max_px; returns the segments drawn."""
+    segs = vitals_segments(hardware)
+    parts: list[tuple[str, str]] = []
+    for i, seg in enumerate(segs):
+        if i:
+            parts.append(("  ·  ", MUTED))
+        parts.append((seg, TEAL_LIGHT))
+    style: dict[str, Any] = {"family": [mono_family(), FALLBACK_MONO], "fontweight": "bold"}
+    while size > 16 and sum(text_width(fig, ax, t, fontsize=size, **style) for t, _ in parts) > max_px:
+        size -= 2
+    if parts:
+        runs(fig, ax, W / 2, y, parts, fontsize=size, **style)
+    return segs
+
+
+def pulse_trace(ax, y: float, *, spike_x: float = 1180.0, amp: float = 190.0) -> None:
+    """A flat line that kicks into one ECG-style beat (P wave, QRS spike, T wave) and runs flat again."""
+    pts = [(0, 0), (spike_x - 330, 0), (spike_x - 300, -14), (spike_x - 270, -24), (spike_x - 240, -14), (spike_x - 210, 0),
+           (spike_x - 120, 0), (spike_x - 92, 22), (spike_x - 55, -amp), (spike_x - 8, amp * 0.42), (spike_x + 22, 0),
+           (spike_x + 110, 0), (spike_x + 160, -34), (spike_x + 215, -46), (spike_x + 270, -34), (spike_x + 320, 0), (W, 0)]
+    xs, ys = [p[0] for p in pts], [y + p[1] for p in pts]
+    for lw, alpha in ((16, 0.06), (9, 0.10), (4.5, 0.95)):  # soft glow under the trace
+        ax.plot(xs, ys, color=TEAL_LIGHT, lw=lw, alpha=alpha, solid_joinstyle="round", solid_capstyle="round", zorder=2)
