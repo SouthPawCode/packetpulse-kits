@@ -53,7 +53,7 @@ class DryRunBackend(Backend):
 
     # -- lifecycle ---------------------------------------------------------------
     def model_info(self) -> dict[str, Any]:
-        if self.cfg.pricing and "vram_mb" not in self.fx:  # an API-like fake model has no local footprint
+        if (self.cfg.pricing or self.fx.get("api")) and "vram_mb" not in self.fx:  # an API-like fake model has no local footprint
             return {"size_gb": None, "quant": None, "vram_after_load_mb": None, "gpu_share_pct": None, "load_seconds": None}
         return {
             "size_gb": self.fx.get("size_gb", 12.0),
@@ -75,9 +75,9 @@ class DryRunBackend(Backend):
         res.prompt_tokens = prompt_tokens
         res.output_tokens = max(1, estimate_tokens(res.text)) if res.text else max(1, 20 * len(res.tool_calls))
         res.total_seconds = round(res.ttft_ms / 1000.0 + res.output_tokens / res.tokens_per_second, 3)
-        pricing = self.cfg.pricing
-        if pricing:
-            res.cost_usd = round(prompt_tokens * pricing["input_per_m"] / 1e6 + res.output_tokens * pricing["output_per_m"] / 1e6, 6)
+        from .openai_compat import cost_usd
+
+        res.cost_usd = cost_usd(self.cfg.pricing, prompt_tokens, res.output_tokens)
 
     def _tool_turn(self, messages: list[dict[str, Any]], tag: Tag, res: ChatResult) -> None:
         scenario = self.scenario or {}

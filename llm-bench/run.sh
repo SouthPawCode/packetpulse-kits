@@ -60,7 +60,7 @@ fi
 
 echo "run.sh: preflight" >&2
 set +e
-"$PY" -m llm_bench preflight --config "$CONFIG" "${FORCE[@]}" "${DRY[@]}" > "$OUT.preflight.json"
+"$PY" -m llm_bench preflight --config "$CONFIG" ${FORCE[@]+"${FORCE[@]}"} ${DRY[@]+"${DRY[@]}"} > "$OUT.preflight.json"
 rc=$?
 set -e
 if [ $rc -ne 0 ]; then
@@ -72,7 +72,7 @@ fi
 echo "run.sh: run" >&2
 RUN_ARGS=(--config "$CONFIG" --out "$OUT")
 [ -n "$TASKS" ] && RUN_ARGS+=(--tasks "$TASKS")
-"$PY" -m llm_bench run "${RUN_ARGS[@]}" "${FORCE[@]}" "${DRY[@]}"
+"$PY" -m llm_bench run "${RUN_ARGS[@]}" ${FORCE[@]+"${FORCE[@]}"} ${DRY[@]+"${DRY[@]}"}
 
 echo "run.sh: render" >&2
 "$PY" -m llm_bench render --results "$OUT/results.json" --out "$ASSETS"

@@ -18,6 +18,7 @@ HANDLE = "@packetpulsedev"
 # --- palette -------------------------------------------------------------------
 CARD = "#0F1519"  # card background
 PANEL = "#172027"  # raised panels and chart areas
+CARD_GLASS = "#0F1519EE"  # card color at 93% opacity: lower-third plate over video
 PANEL_HI = "#1F2C35"
 GRID = "#2B3A44"
 TEAL = "#0E6B67"  # brand accent

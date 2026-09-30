@@ -49,12 +49,12 @@ INSTANCE_SCHEMA: dict[str, Any] = {
                     "role": {"type": "string"},
                     "pull": {"type": "boolean"},
                     "api_key_env": {"type": "string"},
+                    # pricing may be absent, null, or have null rates: cost is then unknown (null), never 0
                     "pricing": {
-                        "type": "object",
-                        "required": ["input_per_m", "output_per_m"],
+                        "type": ["object", "null"],
                         "properties": {
-                            "input_per_m": {"type": "number", "minimum": 0},
-                            "output_per_m": {"type": "number", "minimum": 0},
+                            "input_per_m": {"type": ["number", "null"], "minimum": 0},
+                            "output_per_m": {"type": ["number", "null"], "minimum": 0},
                         },
                     },
                     "dryrun": {"type": "object"},
@@ -124,6 +124,16 @@ class Instance:
         raise KeyError(name)
 
 
+def normalize_pricing(p: dict[str, Any] | None) -> dict[str, float] | None:
+    """Usable pricing or None. Missing, null, or half-null rates mean the cost is unknown."""
+    if not p:
+        return None
+    a, b = p.get("input_per_m"), p.get("output_per_m")
+    if a is None or b is None:
+        return None
+    return {"input_per_m": float(a), "output_per_m": float(b)}
+
+
 def _problems(raw: dict[str, Any]) -> list[str]:
     errs: list[str] = []
     v = jsonschema.Draft202012Validator(INSTANCE_SCHEMA)
@@ -170,7 +180,7 @@ def parse_instance(raw: Any, path: Path | None = None) -> Instance:
                 role=m.get("role", ""),
                 pull=bool(m.get("pull", False)),
                 api_key_env=m.get("api_key_env", ""),
-                pricing=m.get("pricing"),
+                pricing=normalize_pricing(m.get("pricing")),
                 dryrun=m.get("dryrun") or {},
             )
         )

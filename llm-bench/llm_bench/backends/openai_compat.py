@@ -16,10 +16,10 @@ def cost_usd(pricing: dict[str, float] | None, prompt_tokens: int | None, output
     """USD cost from instance pricing (per million tokens); None when pricing or usage is missing."""
     if not pricing or prompt_tokens is None or output_tokens is None:
         return None
-    return round(
-        prompt_tokens * pricing.get("input_per_m", 0.0) / 1e6 + output_tokens * pricing.get("output_per_m", 0.0) / 1e6,
-        6,
-    )
+    rate_in, rate_out = pricing.get("input_per_m"), pricing.get("output_per_m")
+    if rate_in is None or rate_out is None:
+        return None  # unknown price is unknown cost, never 0
+    return round(prompt_tokens * rate_in / 1e6 + output_tokens * rate_out / 1e6, 6)
 
 
 class OpenAICompatBackend(Backend):
@@ -153,6 +153,8 @@ class OpenAICompatBackend(Backend):
         res.cost_usd = cost_usd(self.cfg.pricing, res.prompt_tokens, res.output_tokens)
         if res.ttft_ms is not None:
             res.ttft_ms = round(res.ttft_ms, 1)
+        if res.ttft_any_ms is not None:
+            res.ttft_any_ms = round(res.ttft_any_ms, 1)
         return res
 
     def model_info(self) -> dict[str, Any]:

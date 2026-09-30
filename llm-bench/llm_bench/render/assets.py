@@ -337,7 +337,9 @@ def verdict_card(results: dict[str, Any], m: dict[str, Any], out: Path) -> list[
     if m.get("quant"):
         bits.append(m["quant"])
     if s.get("score_total") is not None:
-        bits.append(f"score {s['score_total']:g} / {s['score_max']:g}")
+        bits.append(f"score {s['score_total']:.2f}".rstrip("0").rstrip(".") + f" / {s['score_max']:g}")
+    if m.get("backend") == "openai_compat":
+        bits.append(f"cost {fmt_cost(m, s)}")  # "n/a" when the instance had no pricing, never $0
     if bits:
         ax.text(80, 205, "  ·  ".join(bits), fontsize=22, color=S.MUTED, va="center")
     colors = {"yes": (S.TEAL_LIGHT, S.INK), "no": (S.RED_DARK, S.TEXT), "maybe": (S.AMBER, S.INK)}
@@ -372,7 +374,7 @@ def title_card(results: dict[str, Any], out: Path) -> list[str]:
 
 def _lower_third(results: dict[str, Any], m: dict[str, Any], transparent: bool) -> Any:
     fig, ax = S.new_card(transparent=transparent)
-    S.panel(ax, 80, 800, 1000, 170, fill="#0F1519EE" if transparent else S.PANEL)
+    S.panel(ax, 80, 800, 1000, 170, fill=S.CARD_GLASS if transparent else S.PANEL)
     ax.add_patch(S.Rectangle((80, 800), 12, 170, color=S.TEAL_LIGHT, lw=0))
     ax.text(124, 850, short(label_of(m), 40), fontsize=34, fontweight="bold", color=S.TEXT, va="center")
     bits = []

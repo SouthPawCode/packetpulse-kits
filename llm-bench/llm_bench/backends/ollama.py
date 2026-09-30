@@ -290,6 +290,8 @@ class OllamaBackend(Backend):
             res.error = "stream ended without a final message"
         if res.ttft_ms is not None:
             res.ttft_ms = round(res.ttft_ms, 1)
+        if res.ttft_any_ms is not None:
+            res.ttft_any_ms = round(res.ttft_any_ms, 1)
         return res
 
     def close(self) -> None:
