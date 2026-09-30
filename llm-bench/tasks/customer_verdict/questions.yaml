@@ -1,0 +1,17 @@
+# Task 10 is not a test. Mike fills this card on camera after the battery; the answers become the verdict card.
+- id: latency_sensitive
+  question: Would I use it where latency matters (interactive triage, a chat box, a voice loop)?
+  answers: [yes, no, maybe]
+  guide: Look at the Speed Ladder TTFT at 4k and 16k and tokens per second. Under about 1 s to first token and above about 25 tok/s is comfortable for a human waiting.
+- id: quality_sensitive
+  question: Would I use it where quality matters (customer-facing triage, config generation, code that ships)?
+  answers: [yes, no, maybe]
+  guide: Look at Alert Triage, Config That Validates, Structured Output, Tool Calling and Code. Anything it fails outright is a no for unattended use.
+- id: vram_constrained
+  question: Would I use it on a 16 GB box like this one, alongside other services?
+  answers: [yes, no, maybe]
+  guide: Look at VRAM after load, the GPU share, and the Speed Ladder at 64k. A model that spills to CPU or needs most of the card is a maybe at best.
+- id: would_i_run_it
+  question: Bottom line - would I run it for a customer?
+  answers: [yes, no, maybe]
+  guide: One sentence of why goes in the note. This is the line on the verdict card.

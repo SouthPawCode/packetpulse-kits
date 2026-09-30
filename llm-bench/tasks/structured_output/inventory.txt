@@ -1,0 +1,5 @@
+Inventory notes, copied from a chat:
+- the core switch is sw-core at 192.168.1.2, on VLAN 1, it is a switch and it does not draw PoE
+- ap-living is an access point, IP 192.168.10.2, VLAN 10, draws 12.5 W of PoE
+- pve1, the Proxmox box: 192.168.40.11, VLAN 40, server, no PoE
+- cam-garage is a camera on the IoT VLAN (20) at 192.168.20.42, pulls 6 W from PoE

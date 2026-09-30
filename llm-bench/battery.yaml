@@ -1,0 +1,213 @@
+# The Packet Pulse Proving Ground, battery v0.1.0.
+# Tasks 0-10 (PRD section 5). Every task has a pass rule written out so a viewer can dispute a score.
+battery_version: "0.1.0"
+name: "The Packet Pulse Proving Ground"
+
+tasks:
+  # ------------------------------------------------------------------ 0
+  - id: 0
+    name: "Specs & Load"
+    kind: auto
+    weight: 1.0
+    runner: specs
+    scorer: {type: load_ok}
+    description: "Cold-load the model and record size on disk, VRAM after load, the GPU/CPU split from Ollama, and load time. API models just answer a ping."
+    pass_rule: "1 if the model loaded and answered a one-token request; 0 if not. The numbers are reported, not judged."
+
+  # ------------------------------------------------------------------ 1
+  - id: 1
+    name: "Speed Ladder"
+    kind: auto
+    weight: 1.0
+    runner: ladder
+    aggregate: all
+    scorer: {type: completed}
+    params:
+      corpus_file: speed_ladder/corpus.txt
+      num_predict: 256
+      instruction: "Summarize the document above in about 150 words."
+    description: "Tokens per second and time to first token with a prompt of 512, 4k, 16k, 32k and 64k tokens (the ladder comes from instance.contexts). One result row per rung."
+    pass_rule: "1 only if every rung completed without an error. Rungs that exceed options.num_ctx_max are cut to fit and noted."
+
+  # ------------------------------------------------------------------ 2
+  - id: 2
+    name: "Alert Triage"
+    kind: mixed
+    weight: 1.0
+    runner: prompt
+    rubric: optional
+    prompt_file: alert_triage/prompt.md
+    num_predict: 1500
+    scorer:
+      type: keyword_groups
+      groups:
+        - {id: device, any: ['sw-agg-1', 'usw[- ]?aggregation', 'aggregation switch']}
+        - {id: port, any: ['port\s*#?\s*7\b', '\bp7\b', 'sw-agg-1\s*[/:#]\s*7\b']}
+        - {id: physical_fault, any: ['\bdac\b', '\bsfp', 'cable', 'transceiver', 'optic', '\bcrc\b', 'link[- ]?flap', 'flapping', 'physical']}
+        - {id: victim, any: ['pve2']}
+    description: "A synthetic bundle of UniFi and Proxmox/Ceph alerts with one planted root cause (a failing SFP+ DAC on sw-agg-1 port 7) among symptoms and noise."
+    pass_rule: "Four keyword groups, each a case-insensitive regex match in the answer: the device (sw-agg-1), the port (7), a physical-layer fault word (DAC, SFP, cable, transceiver, CRC, flapping...), and the affected host (pve2). Score = groups matched / 4; pass = all four. A rubric entry for this task, if Mike adds one, replaces the automatic score."
+
+  # ------------------------------------------------------------------ 3
+  - id: 3
+    name: "Firewall Policy"
+    kind: mixed
+    weight: 1.0
+    runner: prompt
+    rubric: required
+    prompt_file: firewall_policy/prompt.md
+    num_predict: 3000
+    scorer: {type: firewall_rules}
+    params:
+      rubric_card:
+        - "Score 1: a workable ordered policy. Return traffic first, the Home Assistant exception above the IoT block, Guest and Cameras isolated, nothing in the plan contradicted."
+        - "Score 0.5: mostly right but one real mistake (a misordered exception, a missing isolation, one wrong port)."
+        - "Score 0: would lock you out, leaves a VLAN open, or is not a usable rule list."
+        - "The auto checks (10 of them) are in the hint. They find missing rules; they cannot judge ordering subtleties, which is why you score it."
+    description: "Write the ordered inter-VLAN firewall rules for a stated six-VLAN plan. Ten automatic checks find required rules; Mike scores the whole policy."
+    pass_rule: "Rubric score 0 / 0.5 / 1 by Mike, on camera. Ten automatic checks run first and their result is shown on the rubric card: return traffic allowed and first, Guest blocked from every internal network, Guest internet allowed, IoT blocked from Trusted, IoT to Home Assistant TCP 8123 allowed, Cameras blocked from the internet, Trusted to Servers on 22 and 443, Servers blocked from Trusted, Trusted to Management on 443, and the exception-before-block ordering."
+
+  # ------------------------------------------------------------------ 4
+  - id: 4
+    name: "Config That Validates"
+    kind: auto
+    weight: 1.0
+    runner: variants
+    num_predict: 2500
+    variants:
+      - id: nginx
+        prompt_file: config_validates/nginx_prompt.md
+        scorer:
+          type: nginx_validate
+          required:
+            - {id: redirect_301, any: ['return\s+301\s+https://']}
+            - {id: listen_443_ssl, any: ['listen\s+(\[::\]:)?443\s+ssl']}
+            - {id: cert, any: ['ssl_certificate\s+/etc/nginx/certs/fullchain\.pem']}
+            - {id: cert_key, any: ['ssl_certificate_key\s+/etc/nginx/certs/privkey\.pem']}
+            - {id: tls_protocols, any: ['ssl_protocols[^;]*TLSv1\.3']}
+            - {id: proxy_pass, any: ['proxy_pass\s+http://192\.168\.40\.15:8080']}
+            - {id: ws_location, any: ['location\s+(\^~\s+)?/ws/?']}
+            - {id: ws_upgrade, any: ['proxy_set_header\s+Upgrade\s+\$http_upgrade']}
+            - {id: ws_connection, any: ['proxy_set_header\s+Connection']}
+            - {id: host_header, any: ['proxy_set_header\s+Host']}
+            - {id: x_forwarded_for, any: ['X-Forwarded-For']}
+            - {id: x_forwarded_proto, any: ['X-Forwarded-Proto']}
+            - {id: body_size, any: ['client_max_body_size\s+50\s*[mM]\b']}
+            - {id: gzip, any: ['gzip\s+on']}
+            - {id: hsts, any: ['Strict-Transport-Security']}
+      - id: compose
+        prompt_file: config_validates/compose_prompt.md
+        scorer:
+          type: compose_validate
+          required: [postgres_service, postgres_healthcheck, named_volume, depends_on_service_healthy, restart_policy, published_port, custom_network]
+    description: "An nginx reverse-proxy config and a docker-compose file, each checked by the real tool in a container."
+    pass_rule: "nginx: `docker run nginx:alpine nginx -t` must pass AND all 15 required directives must be present. compose: `docker compose config` must pass AND the seven required features must be present (postgres service, pg_isready healthcheck, named volume, depends_on service_healthy, restart policy, published port, custom network). Valid but incomplete = 0.5, invalid = 0. Task score = mean of the two. Without docker the task is not scored and says so."
+
+  # ------------------------------------------------------------------ 5
+  - id: 5
+    name: "Structured Output"
+    kind: auto
+    weight: 1.0
+    runner: variants
+    prompt_file: structured_output/prompt.md
+    num_predict: 1500
+    variants:
+      - id: incident
+        vars: {schema: "file:structured_output/incident.schema.json", input: "file:structured_output/incident.txt"}
+        scorer:
+          type: json_schema
+          schema_file: structured_output/incident.schema.json
+          expect: {incident_id: "INC-2041", severity: "critical", customer_impact: true, started_at: "2026-09-12T02:09:58Z", "actions.0.due": "2026-09-13"}
+      - id: inventory
+        vars: {schema: "file:structured_output/inventory.schema.json", input: "file:structured_output/inventory.txt"}
+        scorer:
+          type: json_schema
+          schema_file: structured_output/inventory.schema.json
+          expect: {"devices.0.hostname": "sw-core", "devices.0.poe_watts": null, "devices.1.poe_watts": 12.5, "devices.2.role": "server", "devices.3.vlan": 20}
+      - id: changelog
+        vars: {schema: "file:structured_output/changelog.schema.json", input: "file:structured_output/changelog.txt"}
+        scorer:
+          type: json_schema
+          schema_file: structured_output/changelog.schema.json
+          expect: {version: "2.4.0", date: "2026-09-14", breaking: false, "changes.3.type": "security"}
+    description: "Three extractions into JSON Schemas (a nested incident, an inventory with nulls, a strict changelog). Validated with jsonschema, then spot-checked against the known values."
+    pass_rule: "Per variant: 1 if the output parses, validates against the schema (no extra properties) and every spot-checked value is right; 0.5 if it validates but a value is wrong; 0 if it does not parse or validate. Task score = mean of the three."
+
+  # ------------------------------------------------------------------ 6
+  - id: 6
+    name: "Tool Calling"
+    kind: auto
+    weight: 1.0
+    runner: tool_loop
+    num_predict: 1500
+    ctx: default
+    scorer: {type: tool_facts}
+    params:
+      scenario: tool_calling/scenario.json
+    description: "A five-step tool loop over three fake tools (lookup_host, get_switch_port, get_port_stats). The answer depends on data only the last call returns."
+    pass_rule: "The final answer must contain four facts: the switch (sw-agg-1), the port (12), the CRC count (18,423) and the negotiated speed (100 Mbps). 1 = all four, 0.5 = at least two, 0 = fewer. Each fact is only obtainable by making the right tool calls, so a fabricated answer fails. The loop stops after 9 turns."
+
+  # ------------------------------------------------------------------ 7
+  - id: 7
+    name: "Code"
+    kind: auto
+    weight: 1.0
+    runner: code
+    num_predict: 1500
+    scorer: {type: code_tests}
+    params:
+      problems: code/problems.yaml
+      timeout_s: 10
+    description: "Ten small network-operator functions (CIDR membership, syslog priority, port ranges, MAC normalisation, free IP, sizes, sliding maximum, alert dedupe, cron fields, interval merge), each with hidden tests."
+    pass_rule: "Per function: 1 if every hidden test passes within 10 seconds, else 0. Task score = functions passed / 10; the matrix shows PASS only at 10/10."
+
+  # ------------------------------------------------------------------ 8
+  - id: 8
+    name: "Long Context"
+    kind: auto
+    weight: 1.0
+    runner: needle
+    ctx: max
+    num_predict: 400
+    prompt_file: long_context/prompt.md
+    scorer: {type: needle}
+    params:
+      target_tokens: 58000
+      seed: 1337
+      chars_per_token: 3.0
+    description: "Find one backup-agent ERROR line, and its incident ID, in a generated syslog of about 58,000 tokens (seeded, identical for every model), with lookalike decoys."
+    pass_rule: "1 if the answer contains the exact planted incident ID and none of the decoy IDs; else 0. The log is shortened automatically if options.num_ctx_max is too small to hold it."
+
+  # ------------------------------------------------------------------ 9
+  - id: 9
+    name: "Build Something"
+    kind: rubric
+    weight: 1.0
+    runner: prompt
+    rubric: required
+    prompt_file: build_something/prompt.md
+    num_predict: 8000
+    scorer: {type: html_checks}
+    params:
+      rubric_card:
+        - "Open outputs/<model>/9.html in a browser on camera."
+        - "Score 1: all 12 hosts drawn on the right switch, links visible, VLAN colors and legend, non-up hosts clearly marked, hover or click shows details, works offline."
+        - "Score 0.5: renders and is useful but something required is missing or wrong (a host, the legend, the hover, a status)."
+        - "Score 0: blank page, a script error, or it does not draw the topology."
+    description: "One visible artifact for the video: a single-file web app that draws the lab topology from tasks/topology.json."
+    pass_rule: "Rubric score 0 / 0.5 / 1 by Mike, on camera, against the card above. Automatic hints (hosts referenced, external scripts, interaction present) are shown on the card."
+
+  # ------------------------------------------------------------------ 10
+  - id: 10
+    name: "Customer Verdict"
+    kind: rubric
+    weight: 0.0
+    runner: verdict
+    rubric: required
+    scorer: {type: none}
+    params:
+      questions: customer_verdict/questions.yaml
+      rubric_card:
+        - "Not a test. Answer yes, no or maybe to the four questions in the verdict block and add one sentence. It feeds the verdict card; it does not add to the score."
+    description: "Not a test: four questions Mike answers on camera about latency-sensitive use, quality-sensitive use, a VRAM-constrained box, and would-I-run-it."
+    pass_rule: "No score. Weight 0. The answers appear on the verdict card."

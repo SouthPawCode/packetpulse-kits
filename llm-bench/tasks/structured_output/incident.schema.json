@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["incident_id", "severity", "affected_hosts", "started_at", "root_cause", "customer_impact", "actions"],
+  "properties": {
+    "incident_id": {"type": "string", "pattern": "^INC-[0-9]{4}$"},
+    "severity": {"enum": ["low", "medium", "high", "critical"]},
+    "affected_hosts": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "started_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "root_cause": {"type": "string", "maxLength": 200},
+    "customer_impact": {"type": "boolean"},
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["owner", "action", "due"],
+        "properties": {
+          "owner": {"type": "string"},
+          "action": {"type": "string"},
+          "due": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+        }
+      }
+    }
+  }
+}

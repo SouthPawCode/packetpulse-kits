@@ -1,0 +1,26 @@
+# A filled example: the 27B baseline, a local GGUF pulled from Hugging Face, and a cloud model through its API.
+kit: llm-bench
+kit_version: "0.1.0"
+battery: battery.yaml            # or a subset file
+title: "Ornith 1.5 at the Proving Ground"
+hardware: "RTX 4070 Ti SUPER 16 GB · 64 GB RAM · Ollama"   # printed on every card
+window: "2026-10-04T14:00:00-04:00"                          # when the run is planned
+baseline: qwen3.8-27B-gsq-rco:64k
+models:
+  - name: qwen3.8-27B-gsq-rco:64k
+    backend: ollama
+    endpoint: http://127.0.0.1:11434
+    role: baseline
+  - name: hf.co/bartowski/Ornith-1.5-35B-A3B-GGUF:Q4_K_M
+    label: "Ornith 1.5 35B-A3B"
+    backend: ollama
+    endpoint: http://127.0.0.1:11434
+    pull: true
+  - name: deepseek-v4.1-flash
+    label: "DeepSeek V4.1 Flash (API)"
+    backend: openai_compat
+    endpoint: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    pricing: {input_per_m: 0.28, output_per_m: 0.42}      # USD, for cost per task
+contexts: [512, 4096, 16384, 32768, 65536]                   # task 1 ladder
+options: {temperature: 0.2, num_ctx_max: 65536, seed: 7}

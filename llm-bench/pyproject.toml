@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-bench"
+version = "0.1.0"
+description = "The Packet Pulse Proving Ground: a fixed benchmark battery for local and cloud language models."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Packet Pulse", email = "hello@packetpulse.dev" }]
+dependencies = [
+  "httpx>=0.27",
+  "pyyaml>=6.0",
+  "jsonschema>=4.20",
+  "matplotlib>=3.8",
+  "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+llm-bench = "llm_bench.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["llm_bench"]
+
+# The battery and its fixtures live next to the package in a checkout; a wheel
+# carries a copy inside the package so `pip install git+...` works anywhere.
+[tool.hatch.build.targets.wheel.force-include]
+"battery.yaml" = "llm_bench/data/battery.yaml"
+"tasks" = "llm_bench/data/tasks"
+
+[tool.hatch.build.targets.sdist]
+include = ["llm_bench", "battery.yaml", "tasks", "examples", "tests", "run.sh", "README.md", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

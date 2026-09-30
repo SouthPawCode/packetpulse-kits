@@ -1,0 +1,42 @@
+ALERT BUNDLE  site=lab  window=2026-09-12 01:00Z..02:35Z  sources=UniFi Network, Proxmox VE/Ceph
+(time UTC | source | severity | message)
+
+01:05:12 | UniFi udm-pro      | WARN | CPU 92% for 2 min (scheduled controller backup running)
+01:05:55 | UniFi udm-pro      | INFO | CPU back to 31%
+01:32:40 | Proxmox pve3       | WARN | SMART /dev/sdc Reallocated_Sector_Ct raw=8 (unused spare disk, not part of any pool)
+01:44:09 | UniFi              | INFO | Firmware 7.0.3 available for USW Pro 24 PoE (sw-core)
+01:55:03 | UniFi WAN1         | WARN | latency to 8.8.8.8 is 180 ms (threshold 100 ms)
+01:55:41 | UniFi WAN1         | INFO | latency normal (11 ms)
+02:01:17 | UniFi ap-living    | INFO | DFS radar detected on channel 100, moved to channel 36
+02:04:30 | UniFi WLAN Guest   | WARN | retry rate 18% on ap-living
+02:06:41 | UniFi sw-agg-1     | WARN | port 7 (SFP+ DAC to pve2) rx_crc_errors=312
+02:09:58 | UniFi sw-agg-1     | WARN | port 7 (SFP+ DAC to pve2) link down
+02:09:59 | UniFi sw-agg-1     | INFO | port 7 link up, 10 Gbps
+02:10:02 | Proxmox pve2       | WARN | corosync: [KNET] link: host 2 link 0 is down
+02:10:03 | UniFi sw-agg-1     | INFO | STP topology change detected, flushing forwarding table
+02:10:05 | Ceph               | WARN | osd.4 osd.5 heartbeat_check: no reply from 192.168.40.13 osd.8 ever on either front or back
+02:10:09 | Proxmox pve2       | WARN | corosync: token has not been received in 2250 ms
+02:10:14 | Proxmox pve1       | WARN | pve-ha-crm: node pve2 status changed to 'unknown'
+02:10:31 | Ceph               | WARN | 2 osds down, 1 host (pve2) down; degraded data redundancy: 214/1980 objects degraded
+02:11:02 | Proxmox pve2       | INFO | corosync: link 0 is up
+02:11:30 | Ceph               | INFO | osd.4 osd.5 marked up
+02:14:16 | UniFi sw-agg-1     | WARN | port 7 (SFP+ DAC to pve2) link down
+02:14:17 | UniFi sw-agg-1     | INFO | port 7 link up, 10 Gbps
+02:14:21 | Proxmox pve2       | WARN | corosync: [KNET] link: host 2 link 0 is down
+02:14:48 | Proxmox pve2       | ERROR | pve-ha-lrm: service vm:104 (nextcloud) restart, node not in quorum
+02:15:40 | UniFi              | WARN | client nas01 disconnected (sw-core port 12) and reconnected 14 s later
+02:19:03 | UniFi sw-agg-1     | WARN | port 7 (SFP+ DAC to pve2) link down
+02:19:04 | UniFi sw-agg-1     | INFO | port 7 link up, 10 Gbps
+02:19:09 | Ceph               | WARN | slow ops, oldest one blocked for 34 sec, osd.4 has slow ops
+02:20:12 | Proxmox pbs1       | ERROR | backup job 'nightly-vm104' failed: connection timed out to pve2
+02:21:50 | UniFi              | INFO | client iPhone-Sam roamed ap-living -> ap-garage
+02:23:35 | UniFi sw-agg-1     | WARN | port 7 (SFP+ DAC to pve2) link down
+02:23:36 | UniFi sw-agg-1     | INFO | port 7 link up, 10 Gbps
+02:23:41 | Proxmox pve2       | WARN | corosync: [KNET] link: host 2 link 0 is down
+02:24:10 | Proxmox pve2       | ERROR | vm:104 (nextcloud) guest agent not responding
+02:27:09 | UniFi sw-agg-1     | WARN | port 7 (SFP+ DAC to pve2) link down
+02:27:10 | UniFi sw-agg-1     | INFO | port 7 link up, 10 Gbps
+02:27:15 | Ceph               | WARN | 2 osds down; degraded data redundancy: 301/1980 objects degraded
+02:28:02 | Proxmox pve1       | INFO | SSL certificate for pve1.lab.example expires in 38 days
+02:29:44 | UniFi sw-agg-1     | CRIT | port 7 rx_crc_errors=48211 (threshold 1000) on SFP+ DAC to pve2
+02:31:20 | Proxmox pve2       | ERROR | vm:104 (nextcloud) unreachable from 3 clients, HA relocation pending

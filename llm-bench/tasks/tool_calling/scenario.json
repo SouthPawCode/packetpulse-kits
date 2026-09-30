@@ -1,0 +1,61 @@
+{
+  "id": "slow-backup02",
+  "system": "You are a network operations assistant for a small lab. You can call tools to inspect the network. Call tools one at a time as you need them, never invent hostnames, MAC addresses, switch names or port numbers, and only use values the tools returned. When you have enough evidence, answer in plain text.",
+  "question": "backup02 is slow to reach from the office. Find the switch port it is connected to, check that port and the uplink path above it, and tell me exactly which link is at fault and what is wrong with it. Give the switch name, the port number, and the evidence from the port counters.",
+  "max_turns": 9,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "lookup_host",
+        "description": "Look up a host by hostname in the inventory. Returns its MAC address, IP address and VLAN.",
+        "parameters": {
+          "type": "object",
+          "properties": {"hostname": {"type": "string", "description": "Inventory hostname, for example nas01"}},
+          "required": ["hostname"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_switch_port",
+        "description": "Find which switch port a MAC address is learned on, and the uplink path of that switch (local uplink port and the remote switch and port it connects to).",
+        "parameters": {
+          "type": "object",
+          "properties": {"mac": {"type": "string", "description": "MAC address, for example aa:bb:cc:dd:ee:ff"}},
+          "required": ["mac"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_port_stats",
+        "description": "Get link state, negotiated speed and duplex, and error counters for one switch port.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "switch": {"type": "string", "description": "Switch name, for example sw-edge-1"},
+            "port": {"type": "integer", "description": "Port number on that switch"}
+          },
+          "required": ["switch", "port"]
+        }
+      }
+    }
+  ],
+  "reference_calls": [
+    {"name": "lookup_host", "arguments": {"hostname": "backup02"}},
+    {"name": "get_switch_port", "arguments": {"mac": "f4:92:bf:2a:10:5c"}},
+    {"name": "get_port_stats", "arguments": {"switch": "sw-edge-3", "port": 9}},
+    {"name": "get_port_stats", "arguments": {"switch": "sw-edge-3", "port": 25}},
+    {"name": "get_port_stats", "arguments": {"switch": "sw-agg-1", "port": 12}}
+  ],
+  "facts": [
+    {"id": "switch", "any": ["sw-agg-1"]},
+    {"id": "port", "any": ["port\\s*#?\\s*12\\b", "\\bsw-agg-1\\b[^\\n]{0,20}\\b12\\b", "sw-agg-1\\s*[/:#]\\s*12\\b"]},
+    {"id": "crc", "numeric": 18423, "tolerance": 0},
+    {"id": "speed", "any": ["\\b100\\s*(mbps|mb/s|mbit|m\\b)", "\\b100\\s*base", "fast\\s*ethernet"]}
+  ],
+  "answer": "sw-agg-1 port 12: negotiated down to 100 Mbps half duplex, 18,423 CRC errors. Everything below it is clean."
+}

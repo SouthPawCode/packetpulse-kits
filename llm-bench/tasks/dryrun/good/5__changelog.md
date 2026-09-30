@@ -1,0 +1,1 @@
+{"version": "2.4.0", "date": "2026-09-14", "breaking": false, "changes": [{"type": "added", "summary": "Add a /metrics endpoint for Prometheus"}, {"type": "fixed", "summary": "Fix a crash when the webhook body is empty"}, {"type": "changed", "summary": "Default log level changes from debug to info"}, {"type": "security", "summary": "Patch an SSRF issue in the image proxy"}]}

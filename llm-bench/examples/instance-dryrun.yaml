@@ -1,0 +1,25 @@
+# Offline example: fake models with fixture outputs and fake timings. No network, no GPU.
+#   python -m llm_bench run --config examples/instance-dryrun.yaml --out /tmp/pg-out
+kit: llm-bench
+kit_version: "0.1.0"
+battery: battery.yaml
+title: "Dry Run at the Proving Ground"
+hardware: "RTX 4070 Ti SUPER 16 GB · 64 GB RAM · Ollama"
+baseline: dry-baseline-27b
+models:
+  - name: dry-baseline-27b
+    label: "Baseline 27B (dry run)"
+    backend: dryrun
+    role: baseline
+    dryrun: {size_gb: 12.1, quant: IQ3_S, vram_mb: 13200, gpu_share_pct: 100, load_seconds: 6.3, tps: 31.0, ttft_ms: 380, quality: 1.0}
+  - name: dry-moe-35b
+    label: "MoE 35B-A3B (dry run)"
+    backend: dryrun
+    dryrun: {size_gb: 20.6, quant: Q4_K_M, vram_mb: 15900, gpu_share_pct: 71, load_seconds: 11.8, tps: 18.5, ttft_ms: 650, quality: 0.6}
+  - name: dry-cloud-flash
+    label: "Cloud Flash (API, dry run)"
+    backend: dryrun
+    pricing: {input_per_m: 0.28, output_per_m: 0.42}
+    dryrun: {tps: 92.0, ttft_ms: 420, quality: 0.85}
+contexts: [512, 4096, 16384, 32768, 65536]
+options: {temperature: 0.2, num_ctx_max: 65536, seed: 7}

@@ -1,0 +1,186 @@
+# Task 7: ten small functions with hidden tests. The model sees `prompt` only;
+# `tests` runs against its code in a separate interpreter (assert statements).
+- id: cidr_contains
+  entry: cidr_contains
+  prompt: |
+    def cidr_contains(cidr: str, ip: str) -> bool
+    Return True if the IPv4 address `ip` is inside the IPv4 network `cidr` (for example "192.168.40.0/24"). Host bits set in `cidr` are ignored ("192.168.40.5/24" means 192.168.40.0/24). Raise ValueError if either argument is not valid.
+  tests: |
+    assert cidr_contains("192.168.40.0/24", "192.168.40.77") is True
+    assert cidr_contains("192.168.40.0/24", "192.168.41.1") is False
+    assert cidr_contains("10.0.0.0/8", "10.255.255.255") is True
+    assert cidr_contains("10.1.2.3/32", "10.1.2.3") is True
+    assert cidr_contains("10.1.2.3/32", "10.1.2.4") is False
+    assert cidr_contains("0.0.0.0/0", "8.8.8.8") is True
+    assert cidr_contains("192.168.40.5/24", "192.168.40.200") is True
+    for bad in [("192.168.40.0/33", "1.1.1.1"), ("192.168.40.0/24", "300.1.1.1"), ("nope", "1.1.1.1")]:
+        try:
+            cidr_contains(*bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError for %r" % (bad,))
+- id: syslog_priority
+  entry: syslog_priority
+  prompt: |
+    def syslog_priority(line: str) -> tuple[str, str]
+    A syslog line starts with "<PRI>" where PRI = facility * 8 + severity. Return (facility_name, severity_name) for the line.
+    Severities 0-7: emerg, alert, crit, err, warning, notice, info, debug.
+    Facilities: 0 kern, 1 user, 2 mail, 3 daemon, 4 auth, 5 syslog, and 16-23 local0 through local7.
+    Raise ValueError if the line does not start with a "<number>" prefix.
+  tests: |
+    assert syslog_priority("<134>Sep 12 02:10:02 pve2 corosync[1]: link down") == ("local0", "info")
+    assert syslog_priority("<0>kernel panic") == ("kern", "emerg")
+    assert syslog_priority("<13>Sep 12 x") == ("user", "notice")
+    assert syslog_priority("<191>debug line") == ("local7", "debug")
+    assert syslog_priority("<38>sshd: ok") == ("auth", "info")
+    assert syslog_priority("<165>x") == ("local4", "notice")
+    for bad in ["Sep 12 no prefix", "<abc>x", ""]:
+        try:
+            syslog_priority(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError for %r" % bad)
+- id: compress_ports
+  entry: compress_ports
+  prompt: |
+    def compress_ports(ports: list[int]) -> str
+    Return the ports as a sorted, de-duplicated, comma-separated string without spaces. A run of three or more consecutive ports is written "first-last"; shorter runs stay as single numbers. An empty list gives "".
+  tests: |
+    assert compress_ports([22, 80, 443]) == "22,80,443"
+    assert compress_ports([8003, 8000, 22, 8001, 8002]) == "22,8000-8003"
+    assert compress_ports([1, 2, 3, 5, 7, 8]) == "1-3,5,7,8"
+    assert compress_ports([]) == ""
+    assert compress_ports([5, 5, 4, 6]) == "4-6"
+    assert compress_ports([80, 81]) == "80,81"
+    assert compress_ports([65535]) == "65535"
+- id: normalize_mac
+  entry: normalize_mac
+  prompt: |
+    def normalize_mac(text: str) -> str
+    Accept a MAC address written as "AA:BB:CC:DD:EE:FF", "AA-BB-CC-DD-EE-FF", "aabb.ccdd.eeff" or "AABBCCDDEEFF" (any letter case, surrounding whitespace allowed) and return it as lowercase colon-separated pairs "aa:bb:cc:dd:ee:ff". Raise ValueError for anything that is not exactly 12 hex digits.
+  tests: |
+    assert normalize_mac("AA:BB:CC:DD:EE:FF") == "aa:bb:cc:dd:ee:ff"
+    assert normalize_mac("AA-BB-CC-DD-EE-FF") == "aa:bb:cc:dd:ee:ff"
+    assert normalize_mac("aabb.ccdd.eeff") == "aa:bb:cc:dd:ee:ff"
+    assert normalize_mac("  AABBCCDDEEFF ") == "aa:bb:cc:dd:ee:ff"
+    assert normalize_mac("f4:92:bf:2a:10:5c") == "f4:92:bf:2a:10:5c"
+    for bad in ["aa:bb:cc:dd:ee", "gg:bb:cc:dd:ee:ff", "aa:bb:cc:dd:ee:ff:00", "", "aabbccddeeffaa"]:
+        try:
+            normalize_mac(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError for %r" % bad)
+- id: next_free_ip
+  entry: next_free_ip
+  prompt: |
+    def next_free_ip(cidr: str, used: list[str]) -> str | None
+    Return the lowest usable host address in the IPv4 network `cidr` that is not in `used`, as a string, or None when none is free. The network and broadcast addresses are not usable hosts.
+  tests: |
+    assert next_free_ip("192.168.1.0/29", ["192.168.1.1", "192.168.1.2"]) == "192.168.1.3"
+    assert next_free_ip("10.0.0.0/30", []) == "10.0.0.1"
+    assert next_free_ip("10.0.0.0/30", ["10.0.0.1", "10.0.0.2"]) is None
+    assert next_free_ip("192.168.1.0/29", ["192.168.1.%d" % i for i in range(1, 7)]) is None
+    assert next_free_ip("192.168.40.0/24", ["192.168.40.1", "192.168.40.3"]) == "192.168.40.2"
+    assert next_free_ip("192.168.40.0/24", ["192.168.40.0", "192.168.40.255"]) == "192.168.40.1"
+- id: parse_size
+  entry: parse_size
+  prompt: |
+    def parse_size(text: str) -> int
+    Convert a human size to bytes using binary units. Accepts an integer or decimal number, optional whitespace, and an optional unit: K, KB, KiB, M, MB, MiB, G, GB, GiB, T, TB, TiB (any letter case; all of them mean powers of 1024). No unit means bytes. Return an int. Raise ValueError for anything else.
+  tests: |
+    assert parse_size("512") == 512
+    assert parse_size("1k") == 1024
+    assert parse_size("1.5G") == 1610612736
+    assert parse_size("2 MiB") == 2097152
+    assert parse_size("10 kb") == 10240
+    assert parse_size("1.5 TB") == 1649267441664
+    assert parse_size(" 4GiB ") == 4294967296
+    for bad in ["abc", "", "12 furlongs", "1.2.3G", "-5K"]:
+        try:
+            parse_size(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError for %r" % bad)
+- id: sliding_max
+  entry: sliding_max
+  prompt: |
+    def sliding_max(values: list[int], k: int) -> list[int]
+    Return the maximum of every window of k consecutive values (len(values) - k + 1 results, left to right). Raise ValueError if k < 1. If k is larger than len(values) return []. It must handle a list of 200,000 values with k = 5,000 in well under a few seconds.
+  tests: |
+    assert sliding_max([1, 3, -1, -3, 5, 3, 6, 7], 3) == [3, 3, 5, 5, 6, 7]
+    assert sliding_max([4, 2, 12, 3], 1) == [4, 2, 12, 3]
+    assert sliding_max([9, 8, 7], 3) == [9]
+    assert sliding_max([1, 2], 5) == []
+    assert sliding_max([], 2) == []
+    try:
+        sliding_max([1, 2, 3], 0)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for k=0")
+    import time
+    big = [(i * 7919) % 100003 for i in range(200000)]
+    t = time.time()
+    out = sliding_max(big, 5000)
+    assert len(out) == 200000 - 5000 + 1
+    assert out[0] == max(big[:5000]) and out[-1] == max(big[-5000:])
+    assert time.time() - t < 5.0, "too slow"
+- id: dedupe_alerts
+  entry: dedupe_alerts
+  prompt: |
+    def dedupe_alerts(alerts: list[tuple[int, str]], window_s: int) -> list[tuple[int, str]]
+    `alerts` is a list of (timestamp_seconds, key) sorted by timestamp. Keep an alert unless an alert with the same key was KEPT less than window_s seconds earlier (suppressed alerts do not extend the window). Return the kept alerts in their original order.
+  tests: |
+    a = [(0, "a"), (10, "a"), (60, "a"), (61, "b"), (62, "a")]
+    assert dedupe_alerts(a, 60) == [(0, "a"), (60, "a"), (61, "b")]
+    assert dedupe_alerts([], 60) == []
+    assert dedupe_alerts([(0, "x"), (0, "x")], 30) == [(0, "x")]
+    assert dedupe_alerts([(0, "x"), (5, "y"), (9, "x")], 10) == [(0, "x"), (5, "y")]
+    assert dedupe_alerts([(0, "x"), (10, "x")], 10) == [(0, "x"), (10, "x")]
+    assert dedupe_alerts([(0, "x"), (1, "x"), (2, "x"), (100, "x")], 50) == [(0, "x"), (100, "x")]
+- id: cron_field_matches
+  entry: cron_field_matches
+  prompt: |
+    def cron_field_matches(field: str, value: int) -> bool
+    Return True if the integer `value` matches one cron field. Supported syntax: "*", "*/n" (values divisible by n), a single number "5", a range "a-b" (inclusive), a stepped range "a-b/n" (values a, a+n, a+2n ... up to b), and comma-separated lists of any of these ("0,15,30-40/5"). Raise ValueError for a malformed field.
+  tests: |
+    assert cron_field_matches("*", 5) is True
+    assert cron_field_matches("*/15", 30) is True
+    assert cron_field_matches("*/15", 31) is False
+    assert cron_field_matches("1-5", 3) is True
+    assert cron_field_matches("1-5", 6) is False
+    assert cron_field_matches("0,30", 30) is True
+    assert cron_field_matches("0,30", 15) is False
+    assert cron_field_matches("10-50/10", 30) is True
+    assert cron_field_matches("10-50/10", 35) is False
+    assert cron_field_matches("10-50/10", 60) is False
+    assert cron_field_matches("5", 5) is True
+    assert cron_field_matches("5", 6) is False
+    assert cron_field_matches("0,15,30-40/5", 35) is True
+    assert cron_field_matches("0,15,30-40/5", 41) is False
+    for bad in ["", "a-b", "*/0", "1-", "5,,6"]:
+        try:
+            cron_field_matches(bad, 1)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("expected ValueError for %r" % bad)
+- id: merge_intervals
+  entry: merge_intervals
+  prompt: |
+    def merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]
+    Merge overlapping or touching intervals (a touching pair like (1, 4) and (4, 5) merges). The input may be unsorted. Return the merged intervals sorted by start, as tuples. Do not modify the input list.
+  tests: |
+    assert merge_intervals([(1, 3), (2, 6), (8, 10), (15, 18)]) == [(1, 6), (8, 10), (15, 18)]
+    assert merge_intervals([(1, 4), (4, 5)]) == [(1, 5)]
+    assert merge_intervals([]) == []
+    assert merge_intervals([(8, 10), (1, 3), (2, 6)]) == [(1, 6), (8, 10)]
+    assert merge_intervals([(1, 10), (2, 3)]) == [(1, 10)]
+    assert merge_intervals([(5, 5)]) == [(5, 5)]
+    src = [(3, 4), (1, 2)]
+    merge_intervals(src)
+    assert src == [(3, 4), (1, 2)]

@@ -1,0 +1,27 @@
+{
+  "name": "Packet Pulse lab network",
+  "gateway": {"name": "udm-pro", "model": "UniFi Dream Machine Pro", "ip": "192.168.1.1"},
+  "switches": [
+    {"name": "sw-core", "model": "USW Pro 24 PoE", "ip": "192.168.1.2", "uplink": "udm-pro", "uplink_port": 1},
+    {"name": "sw-lab", "model": "USW Lite 8 PoE", "ip": "192.168.1.3", "uplink": "sw-core", "uplink_port": 24}
+  ],
+  "vlans": [
+    {"id": 10, "name": "Trusted", "cidr": "192.168.10.0/24"},
+    {"id": 20, "name": "IoT", "cidr": "192.168.20.0/24"},
+    {"id": 40, "name": "Servers", "cidr": "192.168.40.0/24"}
+  ],
+  "hosts": [
+    {"name": "pve1", "ip": "192.168.40.11", "vlan": 40, "switch": "sw-lab", "port": 1, "type": "server", "status": "up"},
+    {"name": "pve2", "ip": "192.168.40.12", "vlan": 40, "switch": "sw-lab", "port": 2, "type": "server", "status": "degraded"},
+    {"name": "pve3", "ip": "192.168.40.13", "vlan": 40, "switch": "sw-lab", "port": 3, "type": "server", "status": "up"},
+    {"name": "ai470", "ip": "192.168.40.30", "vlan": 40, "switch": "sw-lab", "port": 4, "type": "server", "status": "up"},
+    {"name": "nas01", "ip": "192.168.40.21", "vlan": 40, "switch": "sw-core", "port": 12, "type": "storage", "status": "up"},
+    {"name": "desktop-mike", "ip": "192.168.10.21", "vlan": 10, "switch": "sw-core", "port": 3, "type": "workstation", "status": "up"},
+    {"name": "laptop-sam", "ip": "192.168.10.34", "vlan": 10, "switch": "sw-core", "port": 4, "type": "workstation", "status": "up"},
+    {"name": "ha-green", "ip": "192.168.20.5", "vlan": 20, "switch": "sw-core", "port": 8, "type": "iot", "status": "up"},
+    {"name": "cam-front", "ip": "192.168.20.41", "vlan": 20, "switch": "sw-core", "port": 9, "type": "camera", "status": "up"},
+    {"name": "cam-garage", "ip": "192.168.20.42", "vlan": 20, "switch": "sw-core", "port": 10, "type": "camera", "status": "down"},
+    {"name": "printer01", "ip": "192.168.20.60", "vlan": 20, "switch": "sw-core", "port": 15, "type": "iot", "status": "up"},
+    {"name": "ap-living", "ip": "192.168.10.2", "vlan": 10, "switch": "sw-core", "port": 6, "type": "ap", "status": "up"}
+  ]
+}

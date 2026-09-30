@@ -1,0 +1,1 @@
+Release notes for version 2.4.0, shipped on the 14th of September 2026. Nothing in this release breaks existing configs. What's in it: we added a /metrics endpoint for Prometheus; we fixed a crash when the webhook body was empty; the default log level changed from debug to info; and we patched an SSRF issue in the image proxy (security).
