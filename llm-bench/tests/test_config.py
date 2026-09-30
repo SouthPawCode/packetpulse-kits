@@ -120,3 +120,14 @@ def test_missing_or_null_pricing_is_accepted_and_means_unknown_cost():
         assert parse_instance(d).models[2].pricing is None
     d = copy.deepcopy(BASE)
     assert parse_instance(d).models[2].pricing == {"input_per_m": 0.28, "output_per_m": 0.42}
+
+
+def test_readme_documents_every_task_and_cli_verb(battery):
+    readme = (KIT / "README.md").read_text()
+    for t in battery.tasks:
+        assert f"**{t.name}**" in readme, t.name
+    for verb in ("preflight", "run", "score", "render", "validate"):
+        assert f"python -m llm_bench {verb}" in readme
+    for flag in ("--force", "--tasks", "--thumbnail-text", "--dry-run"):
+        assert flag in readme
+    assert "./run.sh" in readme and "@packetpulsedev" in readme

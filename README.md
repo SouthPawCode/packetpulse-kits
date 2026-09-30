@@ -9,7 +9,7 @@ can run the same tests on your own hardware and compare.
 
 | Kit | What it measures | Status |
 |---|---|---|
-| `llm-bench/` | **The Packet Pulse Proving Ground**: a fixed battery for local and cloud language models. Speed and memory on your hardware, then operator tasks: alert triage, firewall policy, configs that must validate, structured output, tool calling, code, long context, and one visible build. Scored automatically where possible. | in progress |
+| `llm-bench/` | **The Packet Pulse Proving Ground**: a fixed battery for local and cloud language models. Speed and memory on your hardware, then operator tasks: alert triage, firewall policy, configs that must validate, structured output, tool calling, code, long context, and one visible build. Scored automatically where possible. | v0.1.0, awaiting its first live run |
 | `network-bench/` | Throughput, latency under load, and VPN performance for routers and gateways. | planned |
 
 Each kit has its own README with a one-line run command, the results schema,
